@@ -44,6 +44,14 @@ public class SkyFrostHelperInterface
         _skyFrostInterface.Sessions.SessionAdded += SessionAdded;
     }
 
+    private void EnsureInitialized()
+    {
+        if (_skyFrostInterface == null)
+        {
+            throw new Exception("SkyFrost interface has not been initialized yet.");
+        }
+    }
+
     public void Dispose()
     {
         _skyFrostInterface?.Session.Logout(true);
@@ -51,6 +59,7 @@ public class SkyFrostHelperInterface
 
     private void SessionUpdated(SessionInfo sessionInfo)
     {
+        EnsureInitialized();
         if (sessionInfo.HostUserId != _skyFrostInterface?.CurrentUserID) return;
         SessionInfo? existing;
         _sessions.TryGetValue(sessionInfo.SessionId, out existing);
@@ -58,12 +67,14 @@ public class SkyFrostHelperInterface
         {
             return;
         }
+
         _sessions[sessionInfo.SessionId] = sessionInfo;
         CurrentSessionStatusChanged?.Invoke(_sessions);
     }
 
     private void SessionRemoved(SessionInfo sessionInfo)
     {
+        EnsureInitialized();
         if (sessionInfo.HostUserId != _skyFrostInterface?.CurrentUserID) return;
         _sessions.Remove(sessionInfo.SessionId);
         CurrentSessionStatusChanged?.Invoke(_sessions);
@@ -71,14 +82,16 @@ public class SkyFrostHelperInterface
 
     private void SessionAdded(SessionInfo sessionInfo)
     {
-        if (sessionInfo.HostUserId != _skyFrostInterface?.CurrentUserID) return;
+        EnsureInitialized();
+        if (sessionInfo.HostUserId != _skyFrostInterface!.CurrentUserID) return;
         _sessions[sessionInfo.SessionId] = sessionInfo;
         CurrentSessionStatusChanged?.Invoke(_sessions);
     }
 
     private void ContactStatusChanged(ContactData contact)
     {
-        if (contact.UserId != _skyFrostInterface?.CurrentUserID) return;
+        EnsureInitialized();
+        if (contact.UserId != _skyFrostInterface!.CurrentUserID) return;
         var sessions = new HashSet<SessionInfo>();
         contact.DecodeSessions(sessions);
         foreach (var session in sessions)
@@ -87,6 +100,20 @@ public class SkyFrostHelperInterface
         }
 
         CurrentSessionStatusChanged?.Invoke(_sessions);
+    }
+
+    public List<Contact> GetPendingFriendRequests()
+    {
+        EnsureInitialized();
+        var contacts = new List<Contact>();
+        _skyFrostInterface!.Contacts.GetContacts(contacts);
+        return contacts.Where(contact => contact.IsContactRequest).ToList();
+    }
+
+    public async Task AcceptFriendRequest(Contact contact)
+    {
+        EnsureInitialized();
+        await _skyFrostInterface!.Contacts.AddContact(contact);
     }
 
     public void Update()
