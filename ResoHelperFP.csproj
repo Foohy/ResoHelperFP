@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net7.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="Elements.Core">
+        <HintPath>E:\SteamLibrary\steamapps\common\Resonite\Resonite_Data\Managed\Elements.Core.dll</HintPath>
+      </Reference>
+      <Reference Include="SkyFrost.Base">
+        <HintPath>E:\SteamLibrary\steamapps\common\Resonite\Resonite_Data\Managed\SkyFrost.Base.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Discord.Net" Version="3.13.0" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+      <PackageReference Include="System.Text.Json" Version="8.0.0" />
+      <PackageReference Include="System.Threading.Channels" Version="8.0.0" />
+      <PackageReference Include="System.Threading.Tasks.Dataflow" Version="8.0.0" />
+      <PackageReference Include="YellowDogMan.Hardware.Info" Version="11.1.0-ydm-0.1.0" />
+    </ItemGroup>
+
+</Project>
