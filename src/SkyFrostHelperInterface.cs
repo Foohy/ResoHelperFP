@@ -1,5 +1,4 @@
 ﻿using Elements.Core;
-using Newtonsoft.Json;
 using SkyFrost.Base;
 
 namespace ResoHelperFP;
@@ -10,6 +9,7 @@ public class SkyFrostHelperInterface
     private SkyFrostInterface? _skyFrostInterface;
 
     public event Action<Dictionary<string, SessionInfo>>? CurrentSessionStatusChanged;
+    public event Action<ContactData>? NewContactRequest;
     private readonly BotConfig _config;
 
     public SkyFrostHelperInterface(BotConfig config)
@@ -39,6 +39,8 @@ public class SkyFrostHelperInterface
         UniLog.Log("Login successful!");
 
         _skyFrostInterface.Contacts.ContactStatusChanged += ContactStatusChanged;
+        _skyFrostInterface.Contacts.ContactAdded += ContactAdded;
+        _skyFrostInterface.Contacts.ContactUpdated += ContactUpdated;
         _skyFrostInterface.Sessions.SessionUpdated += SessionUpdated;
         _skyFrostInterface.Sessions.SessionRemoved += SessionRemoved;
         _skyFrostInterface.Sessions.SessionAdded += SessionAdded;
@@ -52,6 +54,21 @@ public class SkyFrostHelperInterface
         }
     }
 
+    private void ContactAdded(ContactData contact)
+    {
+        NewContactRequest?.Invoke(contact);
+        UniLog.Log("Contact added");
+    }
+
+    private void ContactUpdated(ContactData contact)
+    {
+        if (contact.Contact.IsContactRequest)
+        {
+            UniLog.Log("Contact requested");
+            NewContactRequest?.Invoke(contact);
+        }
+    }
+
     public void Dispose()
     {
         _skyFrostInterface?.Session.Logout(true);
@@ -61,8 +78,7 @@ public class SkyFrostHelperInterface
     {
         EnsureInitialized();
         if (sessionInfo.HostUserId != _skyFrostInterface?.CurrentUserID) return;
-        SessionInfo? existing;
-        _sessions.TryGetValue(sessionInfo.SessionId, out existing);
+        _sessions.TryGetValue(sessionInfo.SessionId, out var existing);
         if (existing != null && existing.ActiveUsers == sessionInfo.ActiveUsers)
         {
             return;

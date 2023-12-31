@@ -47,6 +47,7 @@ internal class ResoHelperFp
         _discordInterface = new DiscordInterface(_config);
 
         _discordInterface.SlashCommandReceived += HandleSlashCommands;
+        _skyFrost.NewContactRequest += OnNewContactRequest;
 
         try
         {
@@ -64,6 +65,13 @@ internal class ResoHelperFp
             UniLog.Error($"Bot died: {e.Message}");
             throw;
         }
+    }
+
+    private void OnNewContactRequest(ContactData contact)
+    {
+        _discordInterface!.SendMessage(
+            $"New contact request to the headless from user '{contact.Contact.ContactUsername}' with ID '{contact.Contact.ContactUserId}'." +
+            $"\nYou can accept this request with the following command: `/contact accept {contact.Contact.ContactUsername}`");
     }
 
     private async Task HandleSlashCommands(SocketSlashCommand command)
@@ -122,7 +130,9 @@ internal class ResoHelperFp
                     return;
                 }
 
-                await command.RespondAsync(string.Join("\n", contacts.Select(contact => contact.ContactUsername)));
+                await command.RespondAsync("The following user" + (contacts.Count == 1 ? " is " : "s are ") +
+                                           "waiting to get approved:\n" +
+                                           string.Join("\n", contacts.Select(contact => contact.ContactUsername)));
                 break;
             }
             case "accept":

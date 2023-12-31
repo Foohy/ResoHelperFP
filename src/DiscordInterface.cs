@@ -54,6 +54,11 @@ public class DiscordInterface
     {
         var guild = _client.GetGuild(_config.DiscordServerId);
 
+        if (guild == null)
+        {
+            throw new ConfigurationErrorsException("Failed to find configured server.");
+        }
+
         try
         {
             await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
@@ -89,6 +94,24 @@ public class DiscordInterface
     public void Dispose()
     {
         _client.Dispose();
+    }
+
+    public void SendMessage(string message)
+    {
+        var guild = _client.GetGuild(_config.DiscordServerId);
+        if (guild == null)
+        {
+            throw new ConfigurationErrorsException("Failed to find configured server.");
+        }
+
+        var channel = guild.TextChannels.FirstOrDefault(channel => channel.Id == _config.DiscordLogChannelId);
+
+        if (channel == null)
+        {
+            throw new ConfigurationErrorsException("Failed to find configured channel ID.");
+        }
+
+        channel.SendMessageAsync(message, allowedMentions: AllowedMentions.None);
     }
 
     public void SetSessionInfoBuffered(Dictionary<string, SessionInfo> sessionInfos)

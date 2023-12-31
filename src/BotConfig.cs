@@ -6,4 +6,5 @@ public class BotConfig
     public string ResoniteUsername { get; set; }
     public string ResonitePassword { get; set; }
     public ulong DiscordServerId { get; set; }
+    public ulong DiscordLogChannelId { get; set; }
 }
