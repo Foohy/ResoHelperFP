@@ -40,7 +40,6 @@ public class SkyFrostHelperInterface
 
         _skyFrostInterface.Contacts.ContactStatusChanged += ContactStatusChanged;
         _skyFrostInterface.Contacts.ContactAdded += ContactAdded;
-        _skyFrostInterface.Contacts.ContactUpdated += ContactUpdated;
         _skyFrostInterface.Sessions.SessionUpdated += SessionUpdated;
         _skyFrostInterface.Sessions.SessionRemoved += SessionRemoved;
         _skyFrostInterface.Sessions.SessionAdded += SessionAdded;
@@ -58,15 +57,6 @@ public class SkyFrostHelperInterface
     {
         NewContactRequest?.Invoke(contact);
         UniLog.Log("Contact added");
-    }
-
-    private void ContactUpdated(ContactData contact)
-    {
-        if (contact.Contact.IsContactRequest)
-        {
-            UniLog.Log("Contact requested");
-            NewContactRequest?.Invoke(contact);
-        }
     }
 
     public void Dispose()
