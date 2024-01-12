@@ -12,15 +12,7 @@ internal static class Program
     private static async Task<int> Main(string[] _)
     {
         var resoHelperFp = new ResoHelperFp();
-        try
-        {
-            await resoHelperFp.MainLoop();
-        }
-        catch
-        {
-            return 1;
-        }
-
+        await resoHelperFp.MainLoop();
         return 0;
     }
 }
@@ -30,6 +22,7 @@ internal class ResoHelperFp
     private bool _running = true;
     private SkyFrostHelperInterface? _skyFrost;
     private DiscordInterface? _discordInterface;
+    private SessionDataReceiver? _dataReceiver;
     private BotConfig? _config;
 
     public async Task MainLoop()
@@ -45,19 +38,33 @@ internal class ResoHelperFp
 
         _skyFrost = new SkyFrostHelperInterface(_config);
         _discordInterface = new DiscordInterface(_config);
-
-        _discordInterface.SlashCommandReceived += HandleSlashCommands;
-        _skyFrost.NewContactRequest += OnNewContactRequest;
-
+        _dataReceiver = new SessionDataReceiver();
         try
         {
             await _skyFrost.Initialize();
             await _discordInterface.MainAsync();
-            _skyFrost.CurrentSessionStatusChanged += _discordInterface.SetSessionInfoBuffered;
+            _discordInterface.SlashCommandReceived += HandleSlashCommands;
+            _skyFrost.NewContactRequest += OnNewContactRequest;
+            _dataReceiver.SessionsUpdated += _discordInterface.SetSessionInfoBuffered;
+
+            _ = Task.Run(async () =>
+            {
+                while (_running)
+                {
+                    try
+                    {
+                        await _dataReceiver.HandleConnection();
+                    }
+                    catch (Exception e)
+                    {
+                        UniLog.Error("Failed to receive status message: " + e.Message);
+                    }
+                }
+            });
             while (_running)
             {
                 _skyFrost.Update();
-                await Task.Delay(1000);
+                await Task.Delay(5000);
             }
         }
         catch (Exception e)
@@ -78,6 +85,26 @@ internal class ResoHelperFp
     {
         switch (command.Data.Name)
         {
+            case "sessions":
+            {
+                var sessions = _skyFrost?.GetCurrentSessions() ?? new List<SessionInfo>();
+                string response;
+                if (!sessions.Any())
+                {
+                    response = "There are currently no sessions running.";
+                }
+                else
+                {
+                    var groups = sessions.GroupBy(info => info.HostUsername);
+                    response = string.Join("\n",
+                        groups.Select(infos =>
+                            $"{infos.Key}:\n" + string.Join("\n",
+                                infos.Select(info => $"{info.Name}: {info.ActiveUsers}"))));
+                }
+
+                await command.RespondAsync(response);
+                break;
+            }
             case "week":
             {
                 var now = DateTime.Now;
@@ -123,30 +150,44 @@ internal class ResoHelperFp
         {
             case "requests":
             {
-                var contacts = _skyFrost.GetPendingFriendRequests();
-                if (contacts.Count == 0)
+                var contacts = _skyFrost.GetPendingFriendRequests().Where(pair => pair.Value.Any()).ToList();
+                var count = contacts.Select(pair => pair.Value.Count).Sum();
+                if (count == 0)
                 {
                     await command.RespondAsync("There are currently no pending friend requests.");
                     return;
                 }
 
-                await command.RespondAsync("The following user" + (contacts.Count == 1 ? " is " : "s are ") +
-                                           "waiting to get approved:\n" +
-                                           string.Join("\n", contacts.Select(contact => contact.ContactUsername)));
+                var response = "The following user" + (count == 1 ? " is " : "s are ") +
+                               "waiting to get approved:\n";
+
+                await command.RespondAsync(
+                    string.Join("\n",
+                            contacts.Select(pair =>
+                                $"{pair.Key.Session.CurrentUser.Username}: \n{string.Join("\n", pair.Value.Select(contact => $"- {contact.ContactUsername}"))}"))
+                        .Trim());
                 break;
             }
             case "accept":
             {
                 var username = command.Data.Options.First().Options.First().Value as string;
-                var contact = _skyFrost.GetPendingFriendRequests().FirstOrDefault(c => c.ContactUsername == username);
-                if (contact == null)
+                var hits = _skyFrost.GetPendingFriendRequests()
+                    .Where(pair => pair.Value.Any(contact => contact.ContactUsername == username)).ToList();
+
+                if (!hits.Any())
                 {
                     await command.RespondAsync($"Friend request for user {username} not found.");
                     return;
                 }
 
-                await _skyFrost.AcceptFriendRequest(contact);
-                await command.RespondAsync($"Accepted friend request from user {contact.ContactUsername}");
+                foreach (var hit in hits)
+                {
+                    var contact = hit.Value.First(c => c.ContactUsername == username);
+                    await _skyFrost.AcceptFriendRequest(hit.Key, contact);
+                    await command.RespondAsync(
+                        $"Accepted friend request from user {contact.ContactUsername} on instance '{hit.Key.Session.CurrentUser.Username}'");
+                }
+
                 break;
             }
         }
@@ -171,6 +212,7 @@ internal class ResoHelperFp
     private void OnCancel(object? sender, ConsoleCancelEventArgs args)
     {
         _running = false;
+        _dataReceiver?.Dispose();
         _skyFrost?.Dispose();
         _discordInterface?.Dispose();
     }

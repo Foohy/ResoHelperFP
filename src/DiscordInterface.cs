@@ -12,7 +12,7 @@ public class DiscordInterface
 {
     private const float UpdateTimeout = 5;
     private Timer? _timeout;
-    private Dictionary<string, SessionInfo>? _queuedSessionInfos;
+    private readonly Dictionary<string, Dictionary<string, SessionData>> _queuedSessionData = new();
     private readonly DiscordSocketClient _client = new();
     private readonly BotConfig _config;
 
@@ -62,10 +62,13 @@ public class DiscordInterface
         try
         {
             await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
+                .WithName("sessions")
+                .WithDescription("List all furpunch Resonite sessions currently running.")
+                .Build());
+            await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
                 .WithName("week")
                 .WithDescription("Get the current week type for furpunch Resonite sessions."
                 ).Build());
-
             await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
                 .WithName("contact")
                 .WithDescription("Interact with headless contacts.")
@@ -114,37 +117,26 @@ public class DiscordInterface
         channel.SendMessageAsync(message, allowedMentions: AllowedMentions.None);
     }
 
-    public void SetSessionInfoBuffered(Dictionary<string, SessionInfo> sessionInfos)
+    public void SetSessionInfoBuffered(string hostname, Dictionary<string, SessionData> sessionInfos)
     {
-        if (sessionInfos.Count == 0)
-        {
-            return;
-        }
-
+        _queuedSessionData[hostname] = sessionInfos;
         if (_timeout == null)
         {
-            _queuedSessionInfos = sessionInfos;
-            _timeout = new Timer(async _ =>
+            _timeout = new Timer(async state =>
             {
-                await SetSessionInfo(_queuedSessionInfos);
-                _queuedSessionInfos = null;
+                await UpdateSessionInfo();
                 _timeout = null;
-            }, null, dueTime: TimeSpan.FromSeconds(UpdateTimeout), period: Timeout.InfiniteTimeSpan);
-            return;
+            }, null, TimeSpan.FromSeconds(UpdateTimeout), period: Timeout.InfiniteTimeSpan);
         }
-
-        _queuedSessionInfos = sessionInfos;
     }
 
-    private async Task SetSessionInfo(Dictionary<string, SessionInfo>? sessionInfos)
+    private async Task UpdateSessionInfo()
     {
-        var status = "";
-        if (sessionInfos != null)
-        {
-            status = string.Join(" | ",
-                sessionInfos.Select(info =>
-                    $"{info.Value.Name.Replace("[fp]", "").Trim()}: {info.Value.ActiveUsers}"));
-        }
+        var status = string.Join(" | ",
+            _queuedSessionData.SelectMany(pair => pair.Value)
+                .Where(info => info.Value.ActiveUserCount > 0)
+                .OrderBy(info => info.Value.ActiveUserCount)
+                .Select(info => $"{info.Key.Replace("[fp]", "").Trim()}: {info.Value.ActiveUserCount}"));
 
         UniLog.Log($"Updating Status: {status}");
         await _client.SetActivityAsync(new CustomStatusGame(status));

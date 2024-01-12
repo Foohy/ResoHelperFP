@@ -6,9 +6,8 @@ namespace ResoHelperFP;
 public class SkyFrostHelperInterface
 {
     private readonly Dictionary<string, SessionInfo> _sessions = new();
-    private SkyFrostInterface? _skyFrostInterface;
+    private readonly List<SkyFrostInterface> _skyFrostInterfaces = new();
 
-    public event Action<Dictionary<string, SessionInfo>>? CurrentSessionStatusChanged;
     public event Action<ContactData>? NewContactRequest;
     private readonly BotConfig _config;
 
@@ -19,111 +18,73 @@ public class SkyFrostHelperInterface
 
     public async Task Initialize()
     {
-        _skyFrostInterface = new SkyFrostInterface(uid: UID.Compute(), SkyFrostConfig.DEFAULT_PRODUCTION);
-
-        var machineId = Guid.NewGuid().ToString();
-        var cloudResult = await _skyFrostInterface.Session.Login(_config.ResoniteUsername,
-            new PasswordLogin(_config.ResonitePassword), machineId, false, null);
-
-        if (cloudResult.Content == "TOTP")
+        foreach (var resoniteConfig in _config.ResoniteConfigs)
         {
-            throw new Exception("Please disable 2FA");
-        }
+            var skyFrostInterface = new SkyFrostInterface(uid: UID.Compute(), SkyFrostConfig.DEFAULT_PRODUCTION);
 
-        if (cloudResult.IsError)
-        {
-            throw new Exception($"Something went wrong: {cloudResult.Content}");
-        }
+            var machineId = Guid.NewGuid().ToString();
+            var cloudResult = await skyFrostInterface.Session.Login(resoniteConfig.ResoniteUsername,
+                new PasswordLogin(resoniteConfig.ResonitePassword), machineId, false, null);
 
-        await _skyFrostInterface.Session.UpdateCurrentUserInfo();
-        UniLog.Log("Login successful!");
+            if (cloudResult.Content == "TOTP")
+            {
+                throw new Exception("Please disable 2FA");
+            }
 
-        _skyFrostInterface.Contacts.ContactStatusChanged += ContactStatusChanged;
-        _skyFrostInterface.Contacts.ContactAdded += ContactAdded;
-        _skyFrostInterface.Sessions.SessionUpdated += SessionUpdated;
-        _skyFrostInterface.Sessions.SessionRemoved += SessionRemoved;
-        _skyFrostInterface.Sessions.SessionAdded += SessionAdded;
-    }
+            if (cloudResult.IsError)
+            {
+                throw new Exception($"Something went wrong: {cloudResult.Content}");
+            }
 
-    private void EnsureInitialized()
-    {
-        if (_skyFrostInterface == null)
-        {
-            throw new Exception("SkyFrost interface has not been initialized yet.");
+            await skyFrostInterface.Session.UpdateCurrentUserInfo();
+            UniLog.Log("Login successful!");
+
+            skyFrostInterface.Contacts.ContactAdded += ContactAdded;
+            _skyFrostInterfaces.Add(skyFrostInterface);
         }
     }
 
     private void ContactAdded(ContactData contact)
     {
         NewContactRequest?.Invoke(contact);
-        UniLog.Log("Contact added");
     }
 
     public void Dispose()
     {
-        _skyFrostInterface?.Session.Logout(true);
+        foreach (var skyfrost in _skyFrostInterfaces)
+        {
+            skyfrost.Session.Logout(true);
+        }
     }
 
-    private void SessionUpdated(SessionInfo sessionInfo)
+    public List<SessionInfo> GetCurrentSessions()
     {
-        EnsureInitialized();
-        if (sessionInfo.HostUserId != _skyFrostInterface?.CurrentUserID) return;
-        _sessions.TryGetValue(sessionInfo.SessionId, out var existing);
-        if (existing != null && existing.ActiveUsers == sessionInfo.ActiveUsers)
+        return _sessions.Values.ToList();
+    }
+
+    public Dictionary<SkyFrostInterface, List<Contact>> GetPendingFriendRequests()
+    {
+        var result = new Dictionary<SkyFrostInterface, List<Contact>>();
+        foreach (var skyFrostInterface in _skyFrostInterfaces)
         {
-            return;
+            var contacts = new List<Contact>();
+            skyFrostInterface.Contacts.GetContacts(contacts);
+            result.Add(skyFrostInterface, contacts.Where(contact => contact.IsContactRequest).ToList());
         }
 
-        _sessions[sessionInfo.SessionId] = sessionInfo;
-        CurrentSessionStatusChanged?.Invoke(_sessions);
+        return result;
     }
 
-    private void SessionRemoved(SessionInfo sessionInfo)
+    public async Task AcceptFriendRequest(SkyFrostInterface skyFrostInterface, Contact contact)
     {
-        EnsureInitialized();
-        if (sessionInfo.HostUserId != _skyFrostInterface?.CurrentUserID) return;
-        _sessions.Remove(sessionInfo.SessionId);
-        CurrentSessionStatusChanged?.Invoke(_sessions);
-    }
-
-    private void SessionAdded(SessionInfo sessionInfo)
-    {
-        EnsureInitialized();
-        if (sessionInfo.HostUserId != _skyFrostInterface!.CurrentUserID) return;
-        _sessions[sessionInfo.SessionId] = sessionInfo;
-        CurrentSessionStatusChanged?.Invoke(_sessions);
-    }
-
-    private void ContactStatusChanged(ContactData contact)
-    {
-        EnsureInitialized();
-        if (contact.UserId != _skyFrostInterface!.CurrentUserID) return;
-        var sessions = new HashSet<SessionInfo>();
-        contact.DecodeSessions(sessions);
-        foreach (var session in sessions)
-        {
-            _sessions[session.SessionId] = session;
-        }
-
-        CurrentSessionStatusChanged?.Invoke(_sessions);
-    }
-
-    public List<Contact> GetPendingFriendRequests()
-    {
-        EnsureInitialized();
-        var contacts = new List<Contact>();
-        _skyFrostInterface!.Contacts.GetContacts(contacts);
-        return contacts.Where(contact => contact.IsContactRequest).ToList();
-    }
-
-    public async Task AcceptFriendRequest(Contact contact)
-    {
-        EnsureInitialized();
-        await _skyFrostInterface!.Contacts.AddContact(contact);
+        await skyFrostInterface.Contacts.AddContact(contact);
     }
 
     public void Update()
     {
-        _skyFrostInterface?.Update();
+        foreach (var skyFrostInterface in _skyFrostInterfaces)
+        {
+            skyFrostInterface.Update();
+        }
     }
 }

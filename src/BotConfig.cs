@@ -2,9 +2,8 @@
 
 public class BotConfig
 {
-    public string DiscordToken { get; set; }
-    public string ResoniteUsername { get; set; }
-    public string ResonitePassword { get; set; }
+    public required List<ResoniteConfig> ResoniteConfigs { get; set; }
+    public required string DiscordToken { get; set; }
     public ulong DiscordServerId { get; set; }
     public ulong DiscordLogChannelId { get; set; }
 }
