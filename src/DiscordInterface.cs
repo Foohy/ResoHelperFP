@@ -10,7 +10,7 @@ namespace ResoHelperFP;
 
 public class DiscordInterface
 {
-    private const float UpdateTimeout = 5;
+    private const float UpdateTimeout = 3;
     private Timer? _timeout;
     private readonly Dictionary<string, Dictionary<string, SessionData>> _queuedSessionData = new();
     private readonly DiscordSocketClient _client = new();
@@ -117,12 +117,12 @@ public class DiscordInterface
         channel.SendMessageAsync(message, allowedMentions: AllowedMentions.None);
     }
 
-    public void SetSessionInfoBuffered(string hostname, Dictionary<string, SessionData> sessionInfos)
+    public void SetSessionDataBuffered(string hostname, Dictionary<string, SessionData> sessionData)
     {
-        _queuedSessionData[hostname] = sessionInfos;
+        _queuedSessionData[hostname] = sessionData;
         if (_timeout == null)
         {
-            _timeout = new Timer(async state =>
+            _timeout = new Timer(async _ =>
             {
                 await UpdateSessionInfo();
                 _timeout = null;
@@ -134,7 +134,7 @@ public class DiscordInterface
     {
         var status = string.Join(" | ",
             _queuedSessionData.SelectMany(pair => pair.Value)
-                .Where(info => info.Value.ActiveUserCount > 0)
+                .Where(info => info.Value.ActiveUserCount > 0 && info.Key != "Userspace" && info.Key != "Local")
                 .OrderBy(info => info.Value.ActiveUserCount)
                 .Select(info => $"{info.Key.Replace("[fp]", "").Trim()}: {info.Value.ActiveUserCount}"));
 
@@ -147,4 +147,6 @@ public class DiscordInterface
         Console.WriteLine(msg.ToString());
         return Task.CompletedTask;
     }
+
+    public Dictionary<string, Dictionary<string, SessionData>> CurrentSessions => _queuedSessionData;
 }

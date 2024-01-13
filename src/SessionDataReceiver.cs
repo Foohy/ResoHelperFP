@@ -1,5 +1,4 @@
-﻿using System.Configuration;
-using System.Net;
+﻿using System.Net;
 using Elements.Core;
 using Newtonsoft.Json;
 
@@ -14,7 +13,7 @@ public class SessionDataReceiver
 
     public SessionDataReceiver()
     {
-        _listener.Prefixes.Add("http://*:9393/");
+        _listener.Prefixes.Add("http://localhost:9393/ingest/");
         _listener.Start();
     }
 
@@ -36,7 +35,7 @@ public class SessionDataReceiver
         var buffer = "Success"u8.ToArray();
         response.ContentLength64 = buffer.Length;
         var output = response.OutputStream;
-        await output.WriteAsync(buffer, 0, buffer.Length);
+        await output.WriteAsync(buffer);
         output.Close();
     }
 }

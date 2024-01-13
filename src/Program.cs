@@ -45,7 +45,7 @@ internal class ResoHelperFp
             await _discordInterface.MainAsync();
             _discordInterface.SlashCommandReceived += HandleSlashCommands;
             _skyFrost.NewContactRequest += OnNewContactRequest;
-            _dataReceiver.SessionsUpdated += _discordInterface.SetSessionInfoBuffered;
+            _dataReceiver.SessionsUpdated += _discordInterface.SetSessionDataBuffered;
 
             _ = Task.Run(async () =>
             {
@@ -87,7 +87,8 @@ internal class ResoHelperFp
         {
             case "sessions":
             {
-                var sessions = _skyFrost?.GetCurrentSessions() ?? new List<SessionInfo>();
+                var sessions = _discordInterface?.CurrentSessions ??
+                               new Dictionary<string, Dictionary<string, SessionData>>();
                 string response;
                 if (!sessions.Any())
                 {
@@ -95,11 +96,11 @@ internal class ResoHelperFp
                 }
                 else
                 {
-                    var groups = sessions.GroupBy(info => info.HostUsername);
                     response = string.Join("\n",
-                        groups.Select(infos =>
-                            $"{infos.Key}:\n" + string.Join("\n",
-                                infos.Select(info => $"{info.Name}: {info.ActiveUsers}"))));
+                        sessions.Select(pair =>
+                            $"{pair.Key}\n{string.Join("\n", pair.Value
+                                .Where(info => info.Key != "Userspace" && info.Key != "Local")
+                                .Select(valuePair => $"- {valuePair.Key}: {valuePair.Value.ActiveUserCount} ({valuePair.Value.UserCount})"))}")).Trim();
                 }
 
                 await command.RespondAsync(response);
