@@ -154,7 +154,9 @@ internal class ResoHelperFp
 
                 try
                 {
-                    await RestartInstance(instance);
+                    var result = await Cli.Wrap("/usr/bin/podman")
+                        .WithArguments(new[] { "restart", "--time", "30", instance })
+                        .ExecuteAsync();
                 }
                 catch (Exception e)
                 {
@@ -173,11 +175,6 @@ internal class ResoHelperFp
         }
     }
 
-    private static async Task RestartInstance(string instance)
-    {
-        await Cli.Wrap("/usr/bin/podman").WithArguments(new[] { "compose", "restart", "--time", "30", instance })
-            .ExecuteAsync();
-    }
 
     private async Task HandleContactsCommand(SocketSlashCommand command)
     {

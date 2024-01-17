@@ -37,7 +37,6 @@ public class SessionDataReceiver
         var data = JsonConvert.DeserializeObject<Dictionary<string, SessionData>>(body) ??
                    new Dictionary<string, SessionData>();
         SessionsUpdated?.Invoke(hostname ?? "Unkown", data);
-        var response = context.Response;
         await Respond(context.Response, "Success"u8.ToArray());
     }
 
