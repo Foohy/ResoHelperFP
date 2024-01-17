@@ -4,7 +4,6 @@ using Discord.Net;
 using Discord.WebSocket;
 using Elements.Core;
 using Newtonsoft.Json;
-using SkyFrost.Base;
 
 namespace ResoHelperFP;
 
@@ -70,6 +69,15 @@ public class DiscordInterface
                 .WithDescription("Get the current week type for furpunch Resonite sessions."
                 ).Build());
             await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
+                .WithName("restart")
+                .WithDescription("Restart a given instance.")
+                .AddOption(new SlashCommandOptionBuilder()
+                    .WithName("instance")
+                    .WithDescription("Instance to restart")
+                    .WithRequired(false)
+                    .WithType(ApplicationCommandOptionType.String))
+                .Build());
+            await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
                 .WithName("contact")
                 .WithDescription("Interact with headless contacts.")
                 .AddOption(new SlashCommandOptionBuilder()
@@ -80,11 +88,11 @@ public class DiscordInterface
                     .WithName("accept")
                     .WithDescription("Accept a pending contact request to the headless.")
                     .WithType(ApplicationCommandOptionType.SubCommand)
-                    .AddOption(new SlashCommandOptionBuilder().WithName("username").WithDescription("User to accept")
+                    .AddOption(new SlashCommandOptionBuilder()
+                        .WithName("username")
+                        .WithDescription("User to accept")
                         .WithRequired(true)
-                        .WithType(ApplicationCommandOptionType.String)
-                    )
-                )
+                        .WithType(ApplicationCommandOptionType.String)))
                 .Build());
         }
         catch (HttpException exception)
@@ -120,14 +128,14 @@ public class DiscordInterface
     public void SetSessionDataBuffered(string hostname, Dictionary<string, SessionData> sessionData)
     {
         _queuedSessionData[hostname] = sessionData;
-        if (_timeout == null)
-        {
-            _timeout = new Timer(async _ =>
-            {
-                await UpdateSessionInfo();
-                _timeout = null;
-            }, null, TimeSpan.FromSeconds(UpdateTimeout), period: Timeout.InfiniteTimeSpan);
-        }
+        _timeout ??= new Timer(UpdateSessionInfoWrapper, null, TimeSpan.FromSeconds(UpdateTimeout),
+            period: Timeout.InfiniteTimeSpan);
+    }
+
+    private async void UpdateSessionInfoWrapper(object? _)
+    {
+        await UpdateSessionInfo();
+        _timeout = null;
     }
 
     private async Task UpdateSessionInfo()

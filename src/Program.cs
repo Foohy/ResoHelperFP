@@ -1,5 +1,6 @@
 ﻿using System.Configuration;
 using System.Globalization;
+using CliWrap;
 using Discord.WebSocket;
 using Elements.Core;
 using Newtonsoft.Json;
@@ -97,10 +98,11 @@ internal class ResoHelperFp
                 else
                 {
                     response = string.Join("\n",
-                        sessions.Select(pair =>
-                            $"{pair.Key}\n{string.Join("\n", pair.Value
-                                .Where(info => info.Key != "Userspace" && info.Key != "Local")
-                                .Select(valuePair => $"- {valuePair.Key}: {valuePair.Value.ActiveUserCount} ({valuePair.Value.UserCount})"))}")).Trim();
+                            sessions.Select(pair =>
+                                $"{pair.Key}\n{string.Join("\n", pair.Value
+                                    .Where(info => info.Key != "Userspace" && info.Key != "Local")
+                                    .Select(valuePair => $"- {valuePair.Key}: {valuePair.Value.ActiveUserCount} ({valuePair.Value.UserCount})"))}"))
+                        .Trim();
                 }
 
                 await command.RespondAsync(response);
@@ -131,11 +133,50 @@ internal class ResoHelperFp
                 await HandleContactsCommand(command);
                 break;
             }
+            case "restart":
+            {
+                var opt = command.Data.Options.FirstOrDefault();
+                var instances = _config?.InstanceNames ?? new List<string>();
+                if (opt == null)
+                {
+                    await command.RespondAsync(
+                        $"Please specify which instance to restart:\n{string.Join("\n", instances.Select(s => $"- {s}"))}"
+                            .Trim());
+                    return;
+                }
+
+                var instance = opt.Value.ToString() ?? "";
+                if (!instances.Contains(instance))
+                {
+                    await command.RespondAsync($"Specified instance does not exist.");
+                    return;
+                }
+
+                try
+                {
+                    await RestartInstance(instance);
+                }
+                catch (Exception e)
+                {
+                    UniLog.Warning($"Instance restarted with errors: {e}");
+                }
+
+                await command.RespondAsync(
+                    "Instance restarting, please allow up to five minutes before yelling at your local server administrator.");
+
+                break;
+            }
             default:
             {
                 return;
             }
         }
+    }
+
+    private static async Task RestartInstance(string instance)
+    {
+        await Cli.Wrap("/usr/bin/podman").WithArguments(new[] { "compose", "restart", "--time", "30", instance })
+            .ExecuteAsync();
     }
 
     private async Task HandleContactsCommand(SocketSlashCommand command)
