@@ -1,7 +1,9 @@
 ﻿using System.Configuration;
 using System.Globalization;
-using CliWrap;
+using System.Runtime.InteropServices;
 using Discord.WebSocket;
+using Docker.DotNet;
+using Docker.DotNet.Models;
 using Elements.Core;
 using Newtonsoft.Json;
 using SkyFrost.Base;
@@ -24,6 +26,7 @@ internal class ResoHelperFp
     private SkyFrostHelperInterface? _skyFrost;
     private DiscordInterface? _discordInterface;
     private SessionDataReceiver? _dataReceiver;
+    private DockerClient? _dockerClient;
     private BotConfig? _config;
 
     public async Task MainLoop()
@@ -39,6 +42,7 @@ internal class ResoHelperFp
 
         _skyFrost = new SkyFrostHelperInterface(_config);
         _discordInterface = new DiscordInterface(_config);
+        _dockerClient = CreateDockerClient();
         _dataReceiver = new SessionDataReceiver();
         try
         {
@@ -136,34 +140,52 @@ internal class ResoHelperFp
             case "restart":
             {
                 var opt = command.Data.Options.FirstOrDefault();
-                var instances = _config?.InstanceNames ?? new List<string>();
+                if (_dockerClient == null) return;
+                var instances = await _dockerClient.Containers.ListContainersAsync(
+                    new ContainersListParameters
+                    {
+                        All = true
+                    });
+
                 if (opt == null)
                 {
                     await command.RespondAsync(
-                        $"Please specify which instance to restart:\n{string.Join("\n", instances.Select(s => $"- {s}"))}"
+                        $"Please specify which instance to restart:\n{string.Join("\n", instances.Select(s => $"- {string.Join(", ", s.Names)}"))}"
                             .Trim());
                     return;
                 }
 
                 var instance = opt.Value.ToString() ?? "";
-                if (!instances.Contains(instance))
+
+                var container = instances.FirstOrDefault(cont => string.Join(", ", cont.Names) == instance);
+                if (container == null)
                 {
                     await command.RespondAsync($"Instance '{instance}' does not exist.");
                     return;
                 }
-
+                
                 await command.RespondAsync(
                     $"Instance '{instance}' restarting, please allow up to five minutes before yelling at your local server administrator.");
-                
+
                 try
                 {
-                    await Cli.Wrap("/usr/bin/podman")
-                        .WithArguments(new[] { "restart", instance })
-                        .ExecuteAsync();
+                    await _dockerClient.Containers.StopContainerAsync(container.ID, new ContainerStopParameters
+                    {
+                        WaitBeforeKillSeconds = 30
+                    });
                 }
                 catch (Exception e)
                 {
-                    UniLog.Warning($"Instance restarted with errors: {e}");
+                    UniLog.Warning($"Instance Stopped with errors: {e}");
+                }
+
+                try
+                {
+                    await _dockerClient.Containers.StartContainerAsync(container.ID, new ContainerStartParameters());
+                }
+                catch (Exception e)
+                {
+                    UniLog.Warning($"Instance Stopped with errors: {e}");
                 }
 
                 break;
@@ -175,6 +197,26 @@ internal class ResoHelperFp
         }
     }
 
+    DockerClient CreateDockerClient()
+    {
+        return new DockerClientConfiguration(new Uri(GetClientUri())).CreateClient();
+
+        string GetClientUri()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return "npipe://./pipe/docker_engine";
+            }
+            else
+            {
+                var podmanPath = $"/run/user/{geteuid()}/podman/podman.sock";
+                return File.Exists(podmanPath) ? $"unix:{podmanPath}" : "unix:/var/run/docker.sock";
+            }
+        }
+
+        [DllImport("libc")]
+        static extern uint geteuid();
+    }
 
     private async Task HandleContactsCommand(SocketSlashCommand command)
     {
@@ -201,6 +243,7 @@ internal class ResoHelperFp
                                "waiting to get approved:\n";
 
                 await command.RespondAsync(
+                    response +
                     string.Join("\n",
                             contacts.Select(pair =>
                                 $"{pair.Key.Session.CurrentUser.Username}: \n{string.Join("\n", pair.Value.Select(contact => $"- {contact.ContactUsername}"))}"))
