@@ -148,23 +148,23 @@ internal class ResoHelperFp
                 var instance = opt.Value.ToString() ?? "";
                 if (!instances.Contains(instance))
                 {
-                    await command.RespondAsync($"Specified instance does not exist.");
+                    await command.RespondAsync($"Instance '{instance}' does not exist.");
                     return;
                 }
 
+                await command.RespondAsync(
+                    $"Instance '{instance}' restarting, please allow up to five minutes before yelling at your local server administrator.");
+                
                 try
                 {
-                    var result = await Cli.Wrap("/usr/bin/podman")
-                        .WithArguments(new[] { "restart", "--time", "30", instance })
+                    await Cli.Wrap("/usr/bin/podman")
+                        .WithArguments(new[] { "restart", instance })
                         .ExecuteAsync();
                 }
                 catch (Exception e)
                 {
                     UniLog.Warning($"Instance restarted with errors: {e}");
                 }
-
-                await command.RespondAsync(
-                    "Instance restarting, please allow up to five minutes before yelling at your local server administrator.");
 
                 break;
             }
