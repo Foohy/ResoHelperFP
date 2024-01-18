@@ -6,22 +6,21 @@ public class SessionData
     public int UserCount { get; set; }
     public required string AccessLevel { get; set; }
 
-    private sealed class SessionDataEqualityComparer : IEqualityComparer<SessionData>
+    private bool Equals(SessionData other)
     {
-        public bool Equals(SessionData? x, SessionData? y)
-        {
-            if (ReferenceEquals(x, y)) return true;
-            if (ReferenceEquals(x, null)) return false;
-            if (ReferenceEquals(y, null)) return false;
-            if (x.GetType() != y.GetType()) return false;
-            return x.ActiveUserCount == y.ActiveUserCount && x.UserCount == y.UserCount && x.AccessLevel == y.AccessLevel;
-        }
-
-        public int GetHashCode(SessionData obj)
-        {
-            return HashCode.Combine(obj.ActiveUserCount, obj.UserCount, obj.AccessLevel);
-        }
+        return ActiveUserCount == other.ActiveUserCount && UserCount == other.UserCount && AccessLevel == other.AccessLevel;
     }
 
-    public static IEqualityComparer<SessionData> SessionDataComparer { get; } = new SessionDataEqualityComparer();
+    public override bool Equals(object? obj)
+    {
+        if (ReferenceEquals(null, obj)) return false;
+        if (ReferenceEquals(this, obj)) return true;
+        if (obj.GetType() != GetType()) return false;
+        return Equals((SessionData)obj);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(ActiveUserCount, UserCount, AccessLevel);
+    }
 }
