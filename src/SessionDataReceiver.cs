@@ -26,7 +26,7 @@ public class SessionDataReceiver
     {
         var context = await _listener.GetContextAsync();
         var hostname = context.Request.Url?.Segments.Last();
-        if (hostname == "ingest/")
+        if (hostname is "ingest/" or null or "")
         {
             await Respond(context.Response, "Failure"u8.ToArray());
             return;

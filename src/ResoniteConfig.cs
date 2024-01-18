@@ -2,6 +2,6 @@
 
 public class ResoniteConfig
 {
-    public string ResoniteUsername { get; set; }
-    public string ResonitePassword { get; set; }
+    public required string ResoniteUsername { get; set; }
+    public required string ResonitePassword { get; set; }
 }

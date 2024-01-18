@@ -9,7 +9,7 @@ namespace ResoHelperFP;
 
 public class DiscordInterface
 {
-    private const float UpdateTimeout = 3;
+    private const float UpdateTimeout = 5;
     private Timer? _timeout;
     private readonly Dictionary<string, Dictionary<string, SessionData>> _queuedSessionData = new();
     private readonly DiscordSocketClient _client = new();
@@ -127,9 +127,31 @@ public class DiscordInterface
 
     public void SetSessionDataBuffered(string hostname, Dictionary<string, SessionData> sessionData)
     {
-        _queuedSessionData[hostname] = sessionData;
-        _timeout ??= new Timer(UpdateSessionInfoWrapper, null, TimeSpan.FromSeconds(UpdateTimeout),
-            period: Timeout.InfiniteTimeSpan);
+        var needsUpdate = false;
+        _queuedSessionData.TryGetValue(hostname, out var existingData);
+        if (existingData == null || existingData.Count != sessionData.Count)
+        {
+            needsUpdate = true;
+        }
+        else
+        {
+            foreach (var session in sessionData)
+            {
+                existingData.TryGetValue(session.Key, out var existingSession);
+                if (existingSession == null || !existingSession.Equals(session.Value))
+                {
+                    needsUpdate = true;
+                    break;
+                }
+            }
+        }
+
+        if (needsUpdate)
+        {
+            _queuedSessionData[hostname] = sessionData;
+            _timeout ??= new Timer(UpdateSessionInfoWrapper, null, TimeSpan.FromSeconds(UpdateTimeout),
+                period: Timeout.InfiniteTimeSpan);
+        }
     }
 
     private async void UpdateSessionInfoWrapper(object? _)
@@ -152,7 +174,7 @@ public class DiscordInterface
 
     private Task Log(LogMessage msg)
     {
-        Console.WriteLine(msg.ToString());
+        UniLog.Log(msg.ToString());
         return Task.CompletedTask;
     }
 
