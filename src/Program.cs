@@ -277,6 +277,29 @@ internal class ResoHelperFp
 
                 break;
             }
+            case "ignore":
+            {
+                var username = command.Data.Options.First().Options.First().Value as string;
+                var hits = _skyFrost.GetPendingFriendRequests()
+                    .Where(pair => pair.Value.Any(contact => contact.ContactUsername == username)).ToList();
+
+                if (!hits.Any())
+                {
+                    await command.RespondAsync($"Friend request for user {username} not found.");
+                    return;
+                }
+
+                foreach (var hit in hits)
+                {
+                    var contact = hit.Value.First(c => c.ContactUsername == username);
+
+                    await _skyFrost.IgnoreFriendRequest(hit.Key, contact);
+                    await command.RespondAsync(
+                        $"Ignored friend request from user {contact.ContactUsername} on instance '{hit.Key.Session.CurrentUser.Username}'");
+                }
+
+                break;
+            }
         }
     }
 

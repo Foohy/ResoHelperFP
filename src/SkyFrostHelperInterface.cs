@@ -80,6 +80,11 @@ public class SkyFrostHelperInterface
         await skyFrostInterface.Contacts.AddContact(contact);
     }
 
+    public async Task IgnoreFriendRequest(SkyFrostInterface skyFrostInterface, Contact contact)
+    {
+        await skyFrostInterface.Contacts.IgnoreRequest(contact);
+    }
+
     public void Update()
     {
         foreach (var skyFrostInterface in _skyFrostInterfaces)
