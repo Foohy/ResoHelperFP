@@ -174,7 +174,7 @@ public class DiscordInterface
         var status = string.Join(" | ",
             _queuedSessionData.SelectMany(pair => pair.Value)
                 .Where(info => info.Value.ActiveUserCount > 0 && info.Key != "Userspace" && info.Key != "Local")
-                .OrderBy(info => info.Value.ActiveUserCount)
+                .OrderByDescending(info => info.Value.ActiveUserCount)
                 .Select(info => $"{info.Key.Replace("[fp]", "").Trim()}: {info.Value.ActiveUserCount}"));
 
         UniLog.Log($"Updating Status: {status}");
