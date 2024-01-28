@@ -167,27 +167,7 @@ internal class ResoHelperFp
                 await command.RespondAsync(
                     $"Instance '{instance}' restarting, please allow up to five minutes before yelling at your local server administrator.");
 
-                try
-                {
-                    await _dockerClient.Containers.StopContainerAsync(container.ID, new ContainerStopParameters
-                    {
-                        WaitBeforeKillSeconds = 30
-                    });
-                }
-                catch (Exception e)
-                {
-                    UniLog.Warning($"Instance Stopped with errors: {e}");
-                }
-
-                try
-                {
-                    await _dockerClient.Containers.StartContainerAsync(container.ID, new ContainerStartParameters());
-                }
-                catch (Exception e)
-                {
-                    UniLog.Warning($"Instance Stopped with errors: {e}");
-                }
-
+                RestartInstance(container.ID);
                 break;
             }
             default:
@@ -196,6 +176,31 @@ internal class ResoHelperFp
             }
         }
     }
+
+    private async void RestartInstance(string containerId)
+    {
+        if (_dockerClient == null) return;
+        try
+        {
+            await _dockerClient.Containers.StopContainerAsync(containerId, new ContainerStopParameters
+            {
+                WaitBeforeKillSeconds = 30
+            });
+        }
+        catch (Exception e)
+        {
+            UniLog.Warning($"Instance Stopped with errors: {e}");
+        }
+
+        try
+        {
+            await _dockerClient.Containers.StartContainerAsync(containerId, new ContainerStartParameters());
+        }
+        catch (Exception e)
+        {
+            UniLog.Warning($"Instance Stopped with errors: {e}");
+        }
+    } 
 
     DockerClient CreateDockerClient()
     {
