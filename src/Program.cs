@@ -163,7 +163,7 @@ internal class ResoHelperFp
                     await command.RespondAsync($"Instance '{instance}' does not exist.");
                     return;
                 }
-                
+
                 await command.RespondAsync(
                     $"Instance '{instance}' restarting, please allow up to five minutes before yelling at your local server administrator.");
 
@@ -200,7 +200,7 @@ internal class ResoHelperFp
         {
             UniLog.Warning($"Instance Stopped with errors: {e}");
         }
-    } 
+    }
 
     DockerClient CreateDockerClient()
     {
@@ -212,11 +212,8 @@ internal class ResoHelperFp
             {
                 return "npipe://./pipe/docker_engine";
             }
-            else
-            {
-                var podmanPath = $"/run/user/{geteuid()}/podman/podman.sock";
-                return File.Exists(podmanPath) ? $"unix:{podmanPath}" : "unix:/var/run/docker.sock";
-            }
+            var podmanPath = $"/run/user/{geteuid()}/podman/podman.sock";
+            return File.Exists(podmanPath) ? $"unix:{podmanPath}" : "unix:/var/run/docker.sock";
         }
 
         [DllImport("libc")]

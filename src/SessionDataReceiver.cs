@@ -33,10 +33,9 @@ public class SessionDataReceiver
         }
 
         var body = await new StreamReader(context.Request.InputStream).ReadToEndAsync();
-        UniLog.Log($"Received session data: {body}");
         var data = JsonConvert.DeserializeObject<Dictionary<string, SessionData>>(body) ??
                    new Dictionary<string, SessionData>();
-        SessionsUpdated?.Invoke(hostname ?? "Unkown", data);
+        SessionsUpdated?.Invoke(hostname, data);
         await Respond(context.Response, "Success"u8.ToArray());
     }
 
