@@ -103,13 +103,13 @@ internal class ResoHelperFp
                 {
                     response = string.Join("\n",
                             sessions.Select(pair =>
-                                $"{pair.Key}\n{string.Join("\n", pair.Value
+                                $"**{pair.Key}**\n{string.Join("\n", pair.Value
                                     .Where(info => info.Key != "Userspace" && info.Key != "Local")
-                                    .Select(valuePair => (valuePair.Value.Hidden ? "\\* " : "") + $"- {valuePair.Key.Replace("[fp]", "").Trim()}: {valuePair.Value.ActiveUserCount}"))}"))
+                                    .Select(valuePair => $"- {valuePair.Key.Replace("[fp]", "").Trim()}" + (valuePair.Value.Hidden ? "\\*" : "" + ": {valuePair.Value.ActiveUserCount}")))}"))
                         .Trim();
                 }
 
-                response += "\nSessions marked with a \\* will require an invite to join.\n" +
+                response += "\n\nSessions marked with a \\* will require an invite to join.\n" +
                             "Send the `/requestInvite` command to the respective headless user **inside Resonite** to get an invite.\n" +
                             "You can add a session index to the command to get an invite to a specific session, starting with 0.\n" +
                             "For example, `/requestInvite 0` will get you an invite to the first session on that headless.";
