@@ -105,7 +105,7 @@ internal class ResoHelperFp
                             sessions.Select(pair =>
                                 $"**{pair.Key}**\n{string.Join("\n", pair.Value
                                     .Where(info => info.Key != "Userspace" && info.Key != "Local")
-                                    .Select(valuePair => $"- {valuePair.Key.Replace("[fp]", "").Trim()}" + (valuePair.Value.Hidden ? "\\*" : "" + ": {valuePair.Value.ActiveUserCount}")))}"))
+                                    .Select(valuePair => "- " + (valuePair.Value.Hidden ? "_" : "") + $"{valuePair.Key.Replace("[fp]", "").Trim()}: " + (valuePair.Value.Hidden ? "_" : "") + valuePair.Value.ActiveUserCount))}"))
                         .Trim();
                 }
 
