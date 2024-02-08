@@ -37,9 +37,8 @@ public class SkyFrostHelperInterface
         {
             var skyFrostInterface = new SkyFrostInterface(uid: UID.Compute(), secretMachineId: secretMachineId, config: SkyFrostConfig.DEFAULT_PRODUCTION);
 
-            var machineId = Guid.NewGuid().ToString();
             var cloudResult = await skyFrostInterface.Session.Login(resoniteConfig.ResoniteUsername,
-                new PasswordLogin(resoniteConfig.ResonitePassword), machineId, false, null);
+                new PasswordLogin(resoniteConfig.ResonitePassword), secretMachineId, false, null);
 
             if (cloudResult.Content == "TOTP")
             {
