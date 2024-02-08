@@ -109,7 +109,7 @@ internal class ResoHelperFp
                         .Trim();
                 }
 
-                response += "\n\nSessions marked with an [H] are hidden and require an invite to join.\n" +
+                response += "\n\nSessions marked with [H] are hidden and require an invite to join.\n" +
                             "Send the `/requestInvite` command to the respective headless user **inside Resonite** to get an invite.\n" +
                             "You can add a session index to the command to get an invite to a specific session, starting with 0.\n" +
                             "For example, `/requestInvite 0` will get you an invite to the first session on that headless.";
