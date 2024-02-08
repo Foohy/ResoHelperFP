@@ -8,10 +8,10 @@
 
     <ItemGroup>
       <Reference Include="Elements.Core">
-        <HintPath>E:\SteamLibrary\steamapps\common\Resonite\Resonite_Data\Managed\Elements.Core.dll</HintPath>
+        <HintPath>D:\Steam\steamapps\common\Resonite\Resonite_Data\Managed\Elements.Core.dll</HintPath>
       </Reference>
       <Reference Include="SkyFrost.Base">
-        <HintPath>E:\SteamLibrary\steamapps\common\Resonite\Resonite_Data\Managed\SkyFrost.Base.dll</HintPath>
+        <HintPath>D:\Steam\steamapps\common\Resonite\Resonite_Data\Managed\SkyFrost.Base.dll</HintPath>
       </Reference>
     </ItemGroup>
 

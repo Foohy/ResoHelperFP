@@ -5,6 +5,7 @@ namespace ResoHelperFP;
 
 public class SkyFrostHelperInterface
 {
+    private const string MachineIdPath = "./.secretMachineId.txt";
     private readonly Dictionary<string, SessionInfo> _sessions = new();
     private readonly List<SkyFrostInterface> _skyFrostInterfaces = new();
 
@@ -18,9 +19,23 @@ public class SkyFrostHelperInterface
 
     public async Task Initialize()
     {
+        string secretMachineId;
+        try
+        {
+            using var machineIdReader = new StreamReader(MachineIdPath);
+            secretMachineId = await machineIdReader.ReadToEndAsync();
+        }
+        catch
+        {
+            File.Delete(MachineIdPath);
+            secretMachineId = CryptoHelper.GenerateCryptoToken();
+            await using var machineIdWriter = new StreamWriter(MachineIdPath);
+            await machineIdWriter.WriteAsync(secretMachineId);
+        }
+
         foreach (var resoniteConfig in _config.ResoniteConfigs)
         {
-            var skyFrostInterface = new SkyFrostInterface(uid: UID.Compute(), SkyFrostConfig.DEFAULT_PRODUCTION);
+            var skyFrostInterface = new SkyFrostInterface(uid: UID.Compute(), secretMachineId: secretMachineId, config: SkyFrostConfig.DEFAULT_PRODUCTION);
 
             var machineId = Guid.NewGuid().ToString();
             var cloudResult = await skyFrostInterface.Session.Login(resoniteConfig.ResoniteUsername,

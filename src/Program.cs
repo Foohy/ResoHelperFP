@@ -105,11 +105,16 @@ internal class ResoHelperFp
                             sessions.Select(pair =>
                                 $"{pair.Key}\n{string.Join("\n", pair.Value
                                     .Where(info => info.Key != "Userspace" && info.Key != "Local")
-                                    .Select(valuePair => $"- {valuePair.Key}: {valuePair.Value.ActiveUserCount} ({valuePair.Value.UserCount})"))}"))
+                                    .Select(valuePair => (valuePair.Value.Hidden ? "\\* " : "") + $"- {valuePair.Key.Replace("[fp]", "").Trim()}: {valuePair.Value.ActiveUserCount}"))}"))
                         .Trim();
                 }
 
-                await command.RespondAsync(response);
+                response += "\nSessions marked with a \\* will require an invite to join.\n" +
+                            "Send the `/requestInvite` command to the respective headless user **inside Resonite** to get an invite.\n" +
+                            "You can add a session index to the command to get an invite to a specific session, starting with 0.\n" +
+                            "For example, `/requestInvite 0` will get you an invite to the first session on that headless.";
+
+                await command.RespondAsync(response, ephemeral: true);
                 break;
             }
             case "week":
@@ -212,6 +217,7 @@ internal class ResoHelperFp
             {
                 return "npipe://./pipe/docker_engine";
             }
+
             var podmanPath = $"/run/user/{geteuid()}/podman/podman.sock";
             return File.Exists(podmanPath) ? $"unix:{podmanPath}" : "unix:/var/run/docker.sock";
         }

@@ -2,13 +2,15 @@
 
 public class SessionData
 {
-    public int ActiveUserCount { get; set; }
-    public int UserCount { get; set; }
-    public required string AccessLevel { get; set; }
+    public int ActiveUserCount { get; init; }
+    public int UserCount { get; init; }
+    public required string AccessLevel { get; init; }
+    public bool Hidden { get; init; }
+    
 
     private bool Equals(SessionData other)
     {
-        return ActiveUserCount == other.ActiveUserCount && UserCount == other.UserCount && AccessLevel == other.AccessLevel;
+        return ActiveUserCount == other.ActiveUserCount && UserCount == other.UserCount && AccessLevel == other.AccessLevel && Hidden == other.Hidden;
     }
 
     public override bool Equals(object? obj)
@@ -21,6 +23,6 @@ public class SessionData
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(ActiveUserCount, UserCount, AccessLevel);
+        return HashCode.Combine(ActiveUserCount, UserCount, AccessLevel, Hidden);
     }
 }
