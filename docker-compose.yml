@@ -1,0 +1,8 @@
+﻿services:
+  resohelperfp:
+    image: resohelperfp
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 9393:9393
