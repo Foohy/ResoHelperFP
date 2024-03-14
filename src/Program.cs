@@ -1,6 +1,7 @@
 ﻿using System.Configuration;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
 using CliWrap;
 using Discord.WebSocket;
 using Docker.DotNet;
@@ -156,14 +157,14 @@ internal class ResoHelperFp
                 if (opt == null)
                 {
                     await command.RespondAsync(
-                        $"Please specify which instance to restart:\n{string.Join("\n", instances.Select(s => $"- {string.Join(", ", s.Names)}"))}"
+                        $"Please specify which instance to restart:\n{string.Join("\n", instances.Select(s => $"- {string.Join(", ", s.Names).TrimStart('/')}"))}"
                             .Trim());
                     return;
                 }
 
                 var instance = opt.Value.ToString() ?? "";
 
-                var container = instances.FirstOrDefault(cont => string.Join(", ", cont.Names) == instance);
+                var container = instances.FirstOrDefault(cont => string.Join(", ", cont.Names).TrimStart('/') == instance);
                 if (container == null)
                 {
                     await command.RespondAsync($"Instance '{instance}' does not exist.");
@@ -189,14 +190,14 @@ internal class ResoHelperFp
                 if (opt == null)
                 {
                     await command.RespondAsync(
-                        $"Please specify which instance to update:\n{string.Join("\n", instances.Select(s => $"- {string.Join(", ", s.Names)}"))}"
+                        $"Please specify which instance to update:\n{string.Join("\n", instances.Select(s => $"- {string.Join(", ", s.Names).TrimStart('/')}"))}"
                             .Trim());
                     return;
                 }
 
                 var instance = opt.Value.ToString() ?? "";
 
-                var container = instances.FirstOrDefault(cont => string.Join(", ", cont.Names) == instance);
+                var container = instances.FirstOrDefault(cont => string.Join(", ", cont.Names).TrimStart('/') == instance);
                 if (container == null)
                 {
                     await command.RespondAsync($"Instance '{instance}' does not exist.");
@@ -266,16 +267,35 @@ internal class ResoHelperFp
         {
             UniLog.Warning($"Instance Stopped with errors: {e}");
         }
+        
+        UniLog.Log($"Building image in {workDir}...");
 
-        await Cli.Wrap("podman")
+        var stdOutBuffer = new StringBuilder();
+        var stdErrBuffer = new StringBuilder();
+        
+        var result = await Cli.Wrap("podman")
             .WithArguments(["compose", "build", "--no-cache"])
             .WithWorkingDirectory(workDir)
+            .WithValidation(CommandResultValidation.None)
+            .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
+            .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
             .ExecuteAsync();
+
+        UniLog.Log($"Exited with code {result.ExitCode}, stdout was:\n{stdOutBuffer}\nstderr was:\n{stdErrBuffer}");
+
+        stdOutBuffer.Clear();
+        stdErrBuffer.Clear();
         
         await Cli.Wrap("podman")
             .WithArguments(["compose", "up", "-d"])
             .WithWorkingDirectory(workDir)
+            .WithValidation(CommandResultValidation.None)
+            .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
+            .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
             .ExecuteAsync();
+
+        UniLog.Log($"Exited with code {result.ExitCode}, stdout was:\n{stdOutBuffer}\nstderr was:\n{stdErrBuffer}");
+
     }
 
     DockerClient CreateDockerClient()
