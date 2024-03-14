@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using Elements.Core;
 using Newtonsoft.Json;
 
 namespace ResoHelperFP;
@@ -13,7 +12,7 @@ public class SessionDataReceiver
 
     public SessionDataReceiver()
     {
-        _listener.Prefixes.Add("http://localhost:9393/ingest/");
+        _listener.Prefixes.Add("http://*:9393/ingest/");
         _listener.Start();
     }
 
