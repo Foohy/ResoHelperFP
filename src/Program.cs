@@ -268,7 +268,12 @@ internal class ResoHelperFp
         }
 
         await Cli.Wrap("podman")
-            .WithArguments(["compose", "up", "-d", "--build", "--no-cache"])
+            .WithArguments(["compose", "build", "--no-cache"])
+            .WithWorkingDirectory(workDir)
+            .ExecuteAsync();
+        
+        await Cli.Wrap("podman")
+            .WithArguments(["compose", "up", "-d"])
             .WithWorkingDirectory(workDir)
             .ExecuteAsync();
     }
