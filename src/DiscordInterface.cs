@@ -78,6 +78,15 @@ public class DiscordInterface
                     .WithType(ApplicationCommandOptionType.String))
                 .Build());
             await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
+                .WithName("update")
+                .WithDescription("Update a given instance.")
+                .AddOption(new SlashCommandOptionBuilder()
+                    .WithName("instance")
+                    .WithDescription("Instance to update")
+                    .WithRequired(false)
+                    .WithType(ApplicationCommandOptionType.String))
+                .Build());
+            await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
                 .WithName("contact")
                 .WithDescription("Interact with headless contacts.")
                 .AddOption(new SlashCommandOptionBuilder()

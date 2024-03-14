@@ -1,6 +1,7 @@
 ﻿using System.Configuration;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using CliWrap;
 using Discord.WebSocket;
 using Docker.DotNet;
 using Docker.DotNet.Models;
@@ -175,6 +176,38 @@ internal class ResoHelperFp
                 RestartInstance(container.ID);
                 break;
             }
+            case "update":
+            {
+                var opt = command.Data.Options.FirstOrDefault();
+                if (_dockerClient == null) return;
+                var instances = await _dockerClient.Containers.ListContainersAsync(
+                    new ContainersListParameters
+                    {
+                        All = true
+                    });
+
+                if (opt == null)
+                {
+                    await command.RespondAsync(
+                        $"Please specify which instance to update:\n{string.Join("\n", instances.Select(s => $"- {string.Join(", ", s.Names)}"))}"
+                            .Trim());
+                    return;
+                }
+
+                var instance = opt.Value.ToString() ?? "";
+
+                var container = instances.FirstOrDefault(cont => string.Join(", ", cont.Names) == instance);
+                if (container == null)
+                {
+                    await command.RespondAsync($"Instance '{instance}' does not exist.");
+                    return;
+                }
+
+                await command.RespondAsync(
+                    $"Instance '{instance}' updating, please allow up to five minutes before yelling at your local server administrator.");
+                UpdateInstance(container.ID);
+                break;
+            }
             default:
             {
                 return;
@@ -203,8 +236,41 @@ internal class ResoHelperFp
         }
         catch (Exception e)
         {
+            UniLog.Error($"Instance start failed: {e}");
+        }
+    }
+
+    private async void UpdateInstance(string containerId)
+    {
+        if (_dockerClient == null) return;
+        var containerInfo = await _dockerClient.Containers.InspectContainerAsync(containerId);
+        string workDir;
+        try
+        {
+             workDir = containerInfo.Config.Labels["com.docker.compose.project.working_dir"];
+        }
+        catch (Exception e)
+        {
+            UniLog.Error($"Failed to get instance working directory, aborting update. Exception: {e}");
+            return;
+        }
+
+        try
+        {
+            await _dockerClient.Containers.StopContainerAsync(containerId, new ContainerStopParameters
+            {
+                WaitBeforeKillSeconds = 30
+            });
+        }
+        catch (Exception e)
+        {
             UniLog.Warning($"Instance Stopped with errors: {e}");
         }
+
+        await Cli.Wrap("podman")
+            .WithArguments(["compose", "up", "-d", "--build", "--no-cache"])
+            .WithWorkingDirectory(workDir)
+            .ExecuteAsync();
     }
 
     DockerClient CreateDockerClient()
