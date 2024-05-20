@@ -164,7 +164,8 @@ internal class ResoHelperFp
 
                 var instance = opt.Value.ToString() ?? "";
 
-                var container = instances.FirstOrDefault(cont => string.Join(", ", cont.Names).TrimStart('/') == instance);
+                var container =
+                    instances.FirstOrDefault(cont => string.Join(", ", cont.Names).TrimStart('/') == instance);
                 if (container == null)
                 {
                     await command.RespondAsync($"Instance '{instance}' does not exist.");
@@ -179,34 +180,11 @@ internal class ResoHelperFp
             }
             case "update":
             {
-                var opt = command.Data.Options.FirstOrDefault();
                 if (_dockerClient == null) return;
-                var instances = await _dockerClient.Containers.ListContainersAsync(
-                    new ContainersListParameters
-                    {
-                        All = true
-                    });
-
-                if (opt == null)
-                {
-                    await command.RespondAsync(
-                        $"Please specify which instance to update:\n{string.Join("\n", instances.Select(s => $"- {string.Join(", ", s.Names).TrimStart('/')}"))}"
-                            .Trim());
-                    return;
-                }
-
-                var instance = opt.Value.ToString() ?? "";
-
-                var container = instances.FirstOrDefault(cont => string.Join(", ", cont.Names).TrimStart('/') == instance);
-                if (container == null)
-                {
-                    await command.RespondAsync($"Instance '{instance}' does not exist.");
-                    return;
-                }
-
                 await command.RespondAsync(
-                    $"Instance '{instance}' updating, please allow up to five minutes before yelling at your local server administrator.");
-                UpdateInstance(container.ID);
+                    $"Updating headless container image, please allow up to five minutes before yelling at your local server administrator." +
+                    $" All instances will continue running the old image until manually or automatically restarted.");
+                UpdateContainerImage();
                 break;
             }
             default:
@@ -241,14 +219,15 @@ internal class ResoHelperFp
         }
     }
 
-    private async void UpdateInstance(string containerId)
+    private async void UpdateContainerImage()
     {
         if (_dockerClient == null) return;
-        var containerInfo = await _dockerClient.Containers.InspectContainerAsync(containerId);
+        var containerInfo = await _dockerClient.Containers.InspectContainerAsync(
+            (await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters())).First().ID);
         string workDir;
         try
         {
-             workDir = containerInfo.Config.Labels["com.docker.compose.project.working_dir"];
+            workDir = containerInfo.Config.Labels["com.docker.compose.project.working_dir"];
         }
         catch (Exception e)
         {
@@ -256,23 +235,11 @@ internal class ResoHelperFp
             return;
         }
 
-        try
-        {
-            await _dockerClient.Containers.StopContainerAsync(containerId, new ContainerStopParameters
-            {
-                WaitBeforeKillSeconds = 30
-            });
-        }
-        catch (Exception e)
-        {
-            UniLog.Warning($"Instance Stopped with errors: {e}");
-        }
-        
         UniLog.Log($"Building image in {workDir}...");
 
         var stdOutBuffer = new StringBuilder();
         var stdErrBuffer = new StringBuilder();
-        
+
         var result = await Cli.Wrap("podman")
             .WithArguments(["compose", "build", "--no-cache"])
             .WithWorkingDirectory(workDir)
@@ -282,20 +249,6 @@ internal class ResoHelperFp
             .ExecuteAsync();
 
         UniLog.Log($"Exited with code {result.ExitCode}, stdout was:\n{stdOutBuffer}\nstderr was:\n{stdErrBuffer}");
-
-        stdOutBuffer.Clear();
-        stdErrBuffer.Clear();
-        
-        await Cli.Wrap("podman")
-            .WithArguments(["compose", "up", "-d"])
-            .WithWorkingDirectory(workDir)
-            .WithValidation(CommandResultValidation.None)
-            .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
-            .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
-            .ExecuteAsync();
-
-        UniLog.Log($"Exited with code {result.ExitCode}, stdout was:\n{stdOutBuffer}\nstderr was:\n{stdErrBuffer}");
-
     }
 
     DockerClient CreateDockerClient()
