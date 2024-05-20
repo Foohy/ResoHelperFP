@@ -212,7 +212,7 @@ internal class ResoHelperFp
         try
         {
             await _dockerClient.Containers.StartContainerAsync(containerId, new ContainerStartParameters());
-            await _discordInterface!.SendMessage($"Instance {instanceName} successfully restarted.");
+            await _discordInterface!.SendMessage($"Instance '{instanceName}' successfully restarted.");
         }
         catch (Exception e)
         {
