@@ -81,9 +81,9 @@ internal class ResoHelperFp
         }
     }
 
-    private void OnNewContactRequest(ContactData contact)
+    private async void OnNewContactRequest(ContactData contact)
     {
-        _discordInterface!.SendMessage(
+        await _discordInterface!.SendMessage(
             $"New contact request to the headless from user '{contact.Contact.ContactUsername}' with ID '{contact.Contact.ContactUserId}'." +
             $"\nYou can accept this request with the following command: `/contact accept {contact.Contact.ContactUsername}`");
     }
@@ -175,7 +175,7 @@ internal class ResoHelperFp
                 await command.RespondAsync(
                     $"Instance '{instance}' restarting, please allow up to five minutes before yelling at your local server administrator.");
 
-                RestartInstance(container.ID);
+                RestartInstance(container.ID, instance);
                 break;
             }
             case "update":
@@ -183,7 +183,7 @@ internal class ResoHelperFp
                 if (_dockerClient == null) return;
                 await command.RespondAsync(
                     $"Updating headless container image, please allow up to five minutes before yelling at your local server administrator." +
-                    $" All instances will continue running the old image until manually or automatically restarted.");
+                    $" All instances will continue running the old image until restarted.");
                 UpdateContainerImage();
                 break;
             }
@@ -194,7 +194,7 @@ internal class ResoHelperFp
         }
     }
 
-    private async void RestartInstance(string containerId)
+    private async void RestartInstance(string containerId, string instanceName)
     {
         if (_dockerClient == null) return;
         try
@@ -212,6 +212,7 @@ internal class ResoHelperFp
         try
         {
             await _dockerClient.Containers.StartContainerAsync(containerId, new ContainerStartParameters());
+            await _discordInterface!.SendMessage($"Instance {instanceName} successfully restarted.");
         }
         catch (Exception e)
         {
@@ -232,6 +233,7 @@ internal class ResoHelperFp
         catch (Exception e)
         {
             UniLog.Error($"Failed to get instance working directory, aborting update. Exception: {e}");
+            await _discordInterface!.SendMessage($"Container update failed: {e.Message}");
             return;
         }
 
@@ -249,9 +251,10 @@ internal class ResoHelperFp
             .ExecuteAsync();
 
         UniLog.Log($"Exited with code {result.ExitCode}, stdout was:\n{stdOutBuffer}\nstderr was:\n{stdErrBuffer}");
+        await _discordInterface!.SendMessage("Container update complete");
     }
 
-    DockerClient CreateDockerClient()
+    static DockerClient CreateDockerClient()
     {
         return new DockerClientConfiguration(new Uri(GetClientUri())).CreateClient();
 

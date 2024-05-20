@@ -120,7 +120,7 @@ public class DiscordInterface
         _client.Dispose();
     }
 
-    public void SendMessage(string message)
+    public async Task SendMessage(string message)
     {
         var guild = _client.GetGuild(_config.DiscordServerId);
         if (guild == null)
@@ -135,7 +135,7 @@ public class DiscordInterface
             throw new ConfigurationErrorsException("Failed to find configured channel ID.");
         }
 
-        channel.SendMessageAsync(message, allowedMentions: AllowedMentions.None);
+        await channel.SendMessageAsync(message, allowedMentions: AllowedMentions.None);
     }
 
     public void SetSessionDataBuffered(string hostname, Dictionary<string, SessionData> sessionData)
