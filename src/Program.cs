@@ -203,10 +203,11 @@ internal class ResoHelperFp
             {
                 WaitBeforeKillSeconds = 30
             });
+            await _dockerClient.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters());
         }
         catch (Exception e)
         {
-            UniLog.Warning($"Instance Stopped with errors: {e}");
+            await _discordInterface!.SendMessage($"Warning: Instance '{instanceName}' stopped with errors: {e}");
         }
 
         try
@@ -216,7 +217,7 @@ internal class ResoHelperFp
         }
         catch (Exception e)
         {
-            UniLog.Error($"Instance start failed: {e}");
+            await _discordInterface!.SendMessage($"Instance '{instanceName}' failed to start: {e}");
         }
     }
 
