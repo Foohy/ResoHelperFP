@@ -197,27 +197,51 @@ internal class ResoHelperFp
     private async void RestartInstance(string containerId, string instanceName)
     {
         if (_dockerClient == null) return;
+        var containerInfo = await _dockerClient.Containers.InspectContainerAsync(containerId);
+        string workDir;
         try
         {
-            await _dockerClient.Containers.StopContainerAsync(containerId, new ContainerStopParameters
-            {
-                WaitBeforeKillSeconds = 30
-            });
-            await _dockerClient.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters());
+            workDir = containerInfo.Config.Labels["com.docker.compose.project.working_dir"];
         }
         catch (Exception e)
         {
-            await _discordInterface!.SendMessage($"Warning: Instance '{instanceName}' stopped with errors: {e}");
+            UniLog.Error($"Failed to get instance working directory, aborting update. Exception: {e}");
+            await _discordInterface!.SendMessage($"Container update failed: {e.Message}");
+            return;
         }
 
-        try
+        var stdOutBuffer = new StringBuilder();
+        var stdErrBuffer = new StringBuilder();
+
+        var result = await Cli.Wrap("podman")
+            .WithArguments(["compose", "down"])
+            .WithWorkingDirectory(workDir)
+            .WithValidation(CommandResultValidation.None)
+            .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
+            .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
+            .ExecuteAsync();
+
+        if (result.ExitCode != 0)
         {
-            await _dockerClient.Containers.StartContainerAsync(containerId, new ContainerStartParameters());
-            await _discordInterface!.SendMessage($"Instance '{instanceName}' successfully restarted.");
+            await _discordInterface!.SendMessage($"Container '{instanceName}' failed to shut down cleanly. This may or may not be okay.");
+            UniLog.Warning(stdOutBuffer + "\n" + stdErrBuffer);
         }
-        catch (Exception e)
+
+        stdOutBuffer.Clear();
+        stdErrBuffer.Clear();
+
+        result = await Cli.Wrap("podman")
+            .WithArguments(["compose", "up", "-d"])
+            .WithWorkingDirectory(workDir)
+            .WithValidation(CommandResultValidation.None)
+            .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
+            .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
+            .ExecuteAsync();
+
+        if (result.ExitCode != 0)
         {
-            await _discordInterface!.SendMessage($"Instance '{instanceName}' failed to start: {e}");
+            await _discordInterface!.SendMessage($"Container '{instanceName}' failed to start. Shits fucked.");
+            UniLog.Error(stdOutBuffer + "\n" + stdErrBuffer);
         }
     }
 
@@ -252,6 +276,13 @@ internal class ResoHelperFp
             .ExecuteAsync();
 
         UniLog.Log($"Exited with code {result.ExitCode}, stdout was:\n{stdOutBuffer}\nstderr was:\n{stdErrBuffer}");
+
+        if (result.ExitCode != 0)
+        {
+            await _discordInterface!.SendMessage("Container failed to build, it's now time to yell at your local server administrator.");
+            return;
+        }
+
         await _discordInterface!.SendMessage("Container update complete");
     }
 
