@@ -243,6 +243,8 @@ internal class ResoHelperFp
             await _discordInterface!.SendMessage($"Container '{instanceName}' failed to start. Shits fucked.");
             UniLog.Error(stdOutBuffer + "\n" + stdErrBuffer);
         }
+
+        await _discordInterface!.SendMessage($"Container '{instanceName}' restarted successfully.");
     }
 
     private async void UpdateContainerImage()
