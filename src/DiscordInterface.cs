@@ -79,7 +79,7 @@ public class DiscordInterface
                 .Build());
             await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
                 .WithName("update")
-                .WithDescription("Update the headless container image. Running instances will continue to use the old image until restarted.")
+                .WithDescription("Update the headless container image. Instances will continue to use the old image until restarted.")
                 .Build());
             await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
                 .WithName("contact")
