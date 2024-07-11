@@ -49,31 +49,34 @@ internal class ResoHelperFp
         _dataReceiver = new SessionDataReceiver();
         try
         {
-            await _skyFrost.Initialize();
-            await _discordInterface.MainAsync();
-            _discordInterface.SlashCommandReceived += HandleSlashCommands;
-            _skyFrost.NewContactRequest += OnNewContactRequest;
-            _dataReceiver.SessionsUpdated += _discordInterface.SetSessionDataBuffered;
-
-            _ = Task.Run(async () =>
+            _discordInterface.Ready += async () =>
             {
+                _discordInterface.SlashCommandReceived += HandleSlashCommands;
+                _skyFrost.NewContactRequest += OnNewContactRequest;
+                _dataReceiver.SessionsUpdated += _discordInterface.SetSessionDataBuffered;
+
+                _ = Task.Run(async () =>
+                {
+                    while (_running)
+                    {
+                        try
+                        {
+                            await _dataReceiver.HandleConnection();
+                        }
+                        catch (Exception e)
+                        {
+                            UniLog.Error("Failed to receive status message: " + e.Message);
+                        }
+                    }
+                });
                 while (_running)
                 {
-                    try
-                    {
-                        await _dataReceiver.HandleConnection();
-                    }
-                    catch (Exception e)
-                    {
-                        UniLog.Error("Failed to receive status message: " + e.Message);
-                    }
+                    _skyFrost.Update();
+                    await Task.Delay(5000);
                 }
-            });
-            while (_running)
-            {
-                _skyFrost.Update();
-                await Task.Delay(5000);
-            }
+            };
+            await _skyFrost.Initialize();
+            await _discordInterface.MainAsync();
         }
         catch (Exception e)
         {
