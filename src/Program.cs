@@ -49,34 +49,43 @@ internal class ResoHelperFp
         _dataReceiver = new SessionDataReceiver();
         try
         {
-            _discordInterface.Ready += async () =>
+            await _skyFrost.Initialize();
+            var ready = false;
+            _discordInterface.Ready += () =>
             {
-                _discordInterface.SlashCommandReceived += HandleSlashCommands;
-                _skyFrost.NewContactRequest += OnNewContactRequest;
-                _dataReceiver.SessionsUpdated += _discordInterface.SetSessionDataBuffered;
+                ready = true;
+                return Task.FromResult(0);
+            };
+            await _discordInterface.MainAsync();
 
-                _ = Task.Run(async () =>
-                {
-                    while (_running)
-                    {
-                        try
-                        {
-                            await _dataReceiver.HandleConnection();
-                        }
-                        catch (Exception e)
-                        {
-                            UniLog.Error("Failed to receive status message: " + e.Message);
-                        }
-                    }
-                });
+            while (!ready)
+            {
+                await Task.Delay(500);
+            }
+            
+            _discordInterface.SlashCommandReceived += HandleSlashCommands;
+            _skyFrost.NewContactRequest += OnNewContactRequest;
+            _dataReceiver.SessionsUpdated += _discordInterface.SetSessionDataBuffered;
+
+            _ = Task.Run(async () =>
+            {
                 while (_running)
                 {
-                    _skyFrost.Update();
-                    await Task.Delay(5000);
+                    try
+                    {
+                        await _dataReceiver.HandleConnection();
+                    }
+                    catch (Exception e)
+                    {
+                        UniLog.Error("Failed to receive status message: " + e.Message);
+                    }
                 }
-            };
-            await _skyFrost.Initialize();
-            await _discordInterface.MainAsync();
+            });
+            while (_running)
+            {
+                _skyFrost.Update();
+                await Task.Delay(5000);
+            }
         }
         catch (Exception e)
         {
