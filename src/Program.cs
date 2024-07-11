@@ -10,6 +10,7 @@ using Elements.Core;
 using Newtonsoft.Json;
 using SkyFrost.Base;
 
+
 namespace ResoHelperFP;
 
 internal static class Program
@@ -250,8 +251,20 @@ internal class ResoHelperFp
     private async void UpdateContainerImage()
     {
         if (_dockerClient == null) return;
-        var containerInfo = await _dockerClient.Containers.InspectContainerAsync(
-            (await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters())).First().ID);
+        var containerInfos = new List<ContainerInspectResponse>();
+        var containers = await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters());
+        foreach (var container in containers)
+        {
+            containerInfos.Add(await _dockerClient.Containers.InspectContainerAsync(container.ID));
+        }
+
+        var containerInfo = containerInfos.FirstOrDefault(container => container.Config.Labels["com.docker.compose.service"] == "resonite");
+        if (containerInfo == null)
+        {
+            await _discordInterface!.SendMessage("Failed to retrieve Resonite container, it's now time to yell at your local server administrator");
+            return;
+        }
+
         string workDir;
         try
         {
