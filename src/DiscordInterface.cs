@@ -2,7 +2,6 @@
 using Discord;
 using Discord.Net;
 using Discord.WebSocket;
-using Elements.Core;
 using Newtonsoft.Json;
 
 namespace ResoHelperFP;
@@ -81,37 +80,11 @@ public class DiscordInterface
                 .WithName("update")
                 .WithDescription("Update the headless container image. Instances will continue to use the old image until restarted.")
                 .Build());
-            await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
-                .WithName("contact")
-                .WithDescription("Interact with headless contacts.")
-                .AddOption(new SlashCommandOptionBuilder()
-                    .WithName("requests")
-                    .WithDescription("Get a list of pending contact requests to the headless.")
-                    .WithType(ApplicationCommandOptionType.SubCommand)
-                ).AddOption(new SlashCommandOptionBuilder()
-                    .WithName("accept")
-                    .WithDescription("Accept a pending contact request to the headless.")
-                    .WithType(ApplicationCommandOptionType.SubCommand)
-                    .AddOption(new SlashCommandOptionBuilder()
-                        .WithName("username")
-                        .WithDescription("User to accept.")
-                        .WithRequired(true)
-                        .WithType(ApplicationCommandOptionType.String))
-                ).AddOption(new SlashCommandOptionBuilder()
-                    .WithName("ignore")
-                    .WithDescription("Ignore a pending contact request to the headless.")
-                    .WithType(ApplicationCommandOptionType.SubCommand)
-                    .AddOption(new SlashCommandOptionBuilder()
-                        .WithName("username")
-                        .WithDescription("User to ignore.")
-                        .WithRequired(true)
-                        .WithType(ApplicationCommandOptionType.String)))
-                .Build());
         }
         catch (HttpException exception)
         {
             var json = JsonConvert.SerializeObject(exception.Errors, Formatting.Indented);
-            UniLog.Error(json);
+            Logger.Error(json);
         }
     }
 
@@ -181,13 +154,13 @@ public class DiscordInterface
                 .OrderByDescending(info => info.Value.ActiveUserCount)
                 .Select(info => $"{info.Key.Replace("[fp]", "").Trim()}: {info.Value.ActiveUserCount}"));
 
-        UniLog.Log($"Updating Status: {status}");
+        Logger.Log($"Updating Status: {status}");
         await _client.SetActivityAsync(new CustomStatusGame(status));
     }
 
     private Task Log(LogMessage msg)
     {
-        UniLog.Log(msg.ToString());
+        Logger.Log(msg.ToString());
         return Task.CompletedTask;
     }
 

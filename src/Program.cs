@@ -1,14 +1,11 @@
-﻿using System.Configuration;
-using System.Globalization;
+﻿using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using CliWrap;
 using Discord.WebSocket;
 using Docker.DotNet;
 using Docker.DotNet.Models;
-using Elements.Core;
 using Newtonsoft.Json;
-using SkyFrost.Base;
 
 
 namespace ResoHelperFP;
@@ -26,7 +23,6 @@ internal static class Program
 internal class ResoHelperFp
 {
     private bool _running = true;
-    private SkyFrostHelperInterface? _skyFrost;
     private DiscordInterface? _discordInterface;
     private SessionDataReceiver? _dataReceiver;
     private DockerClient? _dockerClient;
@@ -40,16 +36,14 @@ internal class ResoHelperFp
 
         if (_config == null)
         {
-            throw new ConfigurationErrorsException("Failed to load config.json");
+            throw new System.Configuration.ConfigurationErrorsException("Failed to load config.json");
         }
 
-        _skyFrost = new SkyFrostHelperInterface(_config);
         _discordInterface = new DiscordInterface(_config);
         _dockerClient = CreateDockerClient();
         _dataReceiver = new SessionDataReceiver();
         try
         {
-            await _skyFrost.Initialize();
             var ready = false;
             _discordInterface.Ready += () =>
             {
@@ -64,7 +58,6 @@ internal class ResoHelperFp
             }
             
             _discordInterface.SlashCommandReceived += HandleSlashCommands;
-            _skyFrost.NewContactRequest += OnNewContactRequest;
             _dataReceiver.SessionsUpdated += _discordInterface.SetSessionDataBuffered;
 
             _ = Task.Run(async () =>
@@ -77,28 +70,20 @@ internal class ResoHelperFp
                     }
                     catch (Exception e)
                     {
-                        UniLog.Error("Failed to receive status message: " + e.Message);
+                        Logger.Error("Failed to receive status message: " + e.Message);
                     }
                 }
             });
             while (_running)
             {
-                _skyFrost.Update();
                 await Task.Delay(5000);
             }
         }
         catch (Exception e)
         {
-            UniLog.Error($"Bot died: {e.Message}");
+            Logger.Error($"Bot died: {e.Message}");
             throw;
         }
-    }
-
-    private async void OnNewContactRequest(ContactData contact)
-    {
-        await _discordInterface!.SendMessage(
-            $"New contact request to the headless from user '{contact.Contact.ContactUsername}' with ID '{contact.Contact.ContactUserId}'." +
-            $"\nYou can accept this request with the following command: `/contact accept {contact.Contact.ContactUsername}`");
     }
 
     private async Task HandleSlashCommands(SocketSlashCommand command)
@@ -150,11 +135,6 @@ internal class ResoHelperFp
                 }
 
                 await command.RespondAsync(response);
-                break;
-            }
-            case "contact":
-            {
-                await HandleContactsCommand(command);
                 break;
             }
             case "restart":
@@ -218,7 +198,7 @@ internal class ResoHelperFp
         }
         catch (Exception e)
         {
-            UniLog.Error($"Failed to get instance working directory, aborting update. Exception: {e}");
+            Logger.Error($"Failed to get instance working directory, aborting update. Exception: {e}");
             await _discordInterface!.SendMessage($"Container update failed: {e.Message}");
             return;
         }
@@ -237,7 +217,7 @@ internal class ResoHelperFp
         if (result.ExitCode != 0)
         {
             await _discordInterface!.SendMessage($"Container '{instanceName}' failed to shut down cleanly. This may or may not be okay.");
-            UniLog.Warning(stdOutBuffer + "\n" + stdErrBuffer);
+            Logger.Warning(stdOutBuffer + "\n" + stdErrBuffer);
         }
 
         stdOutBuffer.Clear();
@@ -254,7 +234,7 @@ internal class ResoHelperFp
         if (result.ExitCode != 0)
         {
             await _discordInterface!.SendMessage($"Container '{instanceName}' failed to start. Shits fucked.");
-            UniLog.Error(stdOutBuffer + "\n" + stdErrBuffer);
+            Logger.Error(stdOutBuffer + "\n" + stdErrBuffer);
         }
 
         await _discordInterface!.SendMessage($"Container '{instanceName}' restarted successfully.");
@@ -284,12 +264,12 @@ internal class ResoHelperFp
         }
         catch (Exception e)
         {
-            UniLog.Error($"Failed to get instance working directory, aborting update. Exception: {e}");
+            Logger.Error($"Failed to get instance working directory, aborting update. Exception: {e}");
             await _discordInterface!.SendMessage($"Container update failed: {e.Message}");
             return;
         }
 
-        UniLog.Log($"Building image in {workDir}...");
+        Logger.Log($"Building image in {workDir}...");
 
         var stdOutBuffer = new StringBuilder();
         var stdErrBuffer = new StringBuilder();
@@ -302,7 +282,7 @@ internal class ResoHelperFp
             .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
             .ExecuteAsync();
 
-        UniLog.Log($"Exited with code {result.ExitCode}, stdout was:\n{stdOutBuffer}\nstderr was:\n{stdErrBuffer}");
+        Logger.Log($"Exited with code {result.ExitCode}, stdout was:\n{stdOutBuffer}\nstderr was:\n{stdErrBuffer}");
 
         if (result.ExitCode != 0)
         {
@@ -332,86 +312,6 @@ internal class ResoHelperFp
         static extern uint geteuid();
     }
 
-    private async Task HandleContactsCommand(SocketSlashCommand command)
-    {
-        if (_skyFrost == null)
-        {
-            await command.RespondAsync("Connection to Resonite API has not been initialized, please try again later.");
-            return;
-        }
-
-        var subCommandName = command.Data.Options.First().Name;
-        switch (subCommandName)
-        {
-            case "requests":
-            {
-                var contacts = _skyFrost.GetPendingFriendRequests().Where(pair => pair.Value.Any()).ToList();
-                var count = contacts.Select(pair => pair.Value.Count).Sum();
-                if (count == 0)
-                {
-                    await command.RespondAsync("There are currently no pending friend requests.");
-                    return;
-                }
-
-                var response = "The following user" + (count == 1 ? " is " : "s are ") +
-                               "waiting to get approved:\n";
-
-                await command.RespondAsync(
-                    response +
-                    string.Join("\n",
-                            contacts.Select(pair =>
-                                $"{pair.Key.Session.CurrentUser.Username}: \n{string.Join("\n", pair.Value.Select(contact => $"- {contact.ContactUsername}"))}"))
-                        .Trim());
-                break;
-            }
-            case "accept":
-            {
-                var username = command.Data.Options.First().Options.First().Value as string;
-                var hits = _skyFrost.GetPendingFriendRequests()
-                    .Where(pair => pair.Value.Any(contact => contact.ContactUsername == username)).ToList();
-
-                if (!hits.Any())
-                {
-                    await command.RespondAsync($"Friend request for user {username} not found.");
-                    return;
-                }
-
-                foreach (var hit in hits)
-                {
-                    var contact = hit.Value.First(c => c.ContactUsername == username);
-                    await _skyFrost.AcceptFriendRequest(hit.Key, contact);
-                    await command.RespondAsync(
-                        $"Accepted friend request from user {contact.ContactUsername} on instance '{hit.Key.Session.CurrentUser.Username}'");
-                }
-
-                break;
-            }
-            case "ignore":
-            {
-                var username = command.Data.Options.First().Options.First().Value as string;
-                var hits = _skyFrost.GetPendingFriendRequests()
-                    .Where(pair => pair.Value.Any(contact => contact.ContactUsername == username)).ToList();
-
-                if (!hits.Any())
-                {
-                    await command.RespondAsync($"Friend request for user {username} not found.");
-                    return;
-                }
-
-                foreach (var hit in hits)
-                {
-                    var contact = hit.Value.First(c => c.ContactUsername == username);
-
-                    await _skyFrost.IgnoreFriendRequest(hit.Key, contact);
-                    await command.RespondAsync(
-                        $"Ignored friend request from user {contact.ContactUsername} on instance '{hit.Key.Session.CurrentUser.Username}'");
-                }
-
-                break;
-            }
-        }
-    }
-
     private static int GetIso8601WeekOfYear(DateTime time)
     {
         // Seriously cheat.  If its Monday, Tuesday or Wednesday, then it'll 
@@ -432,7 +332,6 @@ internal class ResoHelperFp
     {
         _running = false;
         _dataReceiver?.Dispose();
-        _skyFrost?.Dispose();
         _discordInterface?.Dispose();
     }
 }
