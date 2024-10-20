@@ -1,5 +1,7 @@
 ﻿using System.Configuration;
 using Discord;
+using Discord.Commands;
+using Discord.Interactions;
 using Discord.Net;
 using Discord.WebSocket;
 using Newtonsoft.Json;
@@ -15,6 +17,7 @@ public class DiscordInterface
     private readonly BotConfig _config;
 
     public event Func<SocketSlashCommand, Task>? SlashCommandReceived;
+    public event Func<SocketAutocompleteInteraction, Task>? CommandAutocompleteReceived;
 
     public DiscordInterface(BotConfig config)
     {
@@ -39,7 +42,14 @@ public class DiscordInterface
         await _client.LoginAsync(TokenType.Bot, _config.DiscordToken);
         await _client.StartAsync();
         _client.SlashCommandExecuted += SlashCommandHandler;
+        _client.AutocompleteExecuted += AutocompleteHandler;
         Ready += OnDiscordReady;
+    }
+
+    private async Task AutocompleteHandler(SocketAutocompleteInteraction arg)
+    {
+        if (CommandAutocompleteReceived == null) return;
+        await CommandAutocompleteReceived(arg);
     }
 
     private async Task SlashCommandHandler(SocketSlashCommand command)
@@ -74,11 +84,8 @@ public class DiscordInterface
                     .WithName("instance")
                     .WithDescription("Instance to restart")
                     .WithRequired(false)
-                    .WithType(ApplicationCommandOptionType.String))
-                .Build());
-            await guild.CreateApplicationCommandAsync(new SlashCommandBuilder()
-                .WithName("update")
-                .WithDescription("Update the headless container image. Instances will continue to use the old image until restarted.")
+                    .WithType(ApplicationCommandOptionType.String)
+                    .WithAutocomplete(true))
                 .Build());
         }
         catch (HttpException exception)

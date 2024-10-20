@@ -1,5 +1,8 @@
 {
   "DiscordToken": "",
   "DiscordServerId": 0,
-  "DiscordLogChannelId": 0
+  "DiscordLogChannelId": 0,
+  "ContainersWhitelist": [
+
+  ]
 }

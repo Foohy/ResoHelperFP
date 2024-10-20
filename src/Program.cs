@@ -1,10 +1,10 @@
 ﻿using System.Globalization;
 using System.Runtime.InteropServices;
-using System.Text;
-using CliWrap;
+using Discord;
 using Discord.WebSocket;
 using Docker.DotNet;
 using Docker.DotNet.Models;
+using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 
 
@@ -58,6 +58,7 @@ internal class ResoHelperFp
             }
             
             _discordInterface.SlashCommandReceived += HandleSlashCommands;
+            _discordInterface.CommandAutocompleteReceived += HandleAutocomplete;
             _dataReceiver.SessionsUpdated += _discordInterface.SetSessionDataBuffered;
 
             _ = Task.Run(async () =>
@@ -83,6 +84,34 @@ internal class ResoHelperFp
         {
             Logger.Error($"Bot died: {e.Message}");
             throw;
+        }
+    }
+
+    private async Task HandleAutocomplete(SocketAutocompleteInteraction interaction)
+    {
+        if (_config == null) return;
+        string commandName = interaction.Data.CommandName;
+        string parameterName = interaction.Data.Current.Name;
+        string currentText = (interaction.Data.Current.Value.ToString() ?? string.Empty).ToLower();
+
+        switch (commandName)
+        {
+            case "restart":
+            {
+                if (_config.ContainersWhitelist == null) break;
+                List<string> options = ["All", .. _config.ContainersWhitelist];       
+                List<AutocompleteResult> items = 
+                     options
+                    .Where(item => item.ToLower().StartsWith(currentText.ToLower()))
+                    .Take(25)
+                    .Select(x => new AutocompleteResult($"{x}", x))
+                    .ToList();
+
+                await interaction.RespondAsync(items);
+                break;
+            }
+            default:
+                break;
         }
     }
 
@@ -140,44 +169,72 @@ internal class ResoHelperFp
             case "restart":
             {
                 var opt = command.Data.Options.FirstOrDefault();
-                if (_dockerClient == null) return;
-                var instances = await _dockerClient.Containers.ListContainersAsync(
-                    new ContainersListParameters
-                    {
-                        All = true
-                    });
-
+                if (_config == null || _config.ContainersWhitelist == null || _config.ContainersWhitelist.Count == 0)
+                {
+                    await command.RespondAsync($"No containers configured for restart!");
+                    return;
+                }
                 if (opt == null)
                 {
                     await command.RespondAsync(
-                        $"Please specify which instance to restart:\n{string.Join("\n", instances.Select(s => $"- {string.Join(", ", s.Names).TrimStart('/')}"))}"
+                        $"Please specify which instance to restart:\n{string.Join("\n", _config.ContainersWhitelist)}"
                             .Trim());
                     return;
                 }
 
-                var instance = opt.Value.ToString() ?? "";
 
-                var container =
-                    instances.FirstOrDefault(cont => string.Join(", ", cont.Names).TrimStart('/') == instance);
-                if (container == null)
+                string instance = instance = opt.Value.ToString() ?? "";
+                IList<ContainerListResponse> instances;
+                if (_dockerClient == null) return;
+                try
                 {
-                    await command.RespondAsync($"Instance '{instance}' does not exist.");
+                    instances = await _dockerClient.Containers.ListContainersAsync(
+                        new ContainersListParameters
+                        {
+                            All = true
+                        });  
+                }
+                catch (System.TimeoutException)
+                {
+                    await command.RespondAsync($"Unable to communicate with Docker API");
                     return;
                 }
 
-                await command.RespondAsync(
-                    $"Instance '{instance}' restarting, please allow up to five minutes before yelling at your local server administrator.");
+                // Restart all instances defined in the whitelist
+                if (instance.ToLower().Equals("all"))
+                {
+                    List<string> restartTasks = new();
+                    foreach (string ContainerName in _config?.ContainersWhitelist ?? new List<string>())
+                    {
+                        var container = instances.FirstOrDefault(cont => string.Join(", ", cont.Names).TrimStart('/') == ContainerName);
+                        if (container == null)
+                        {
+                            Logger.Warning($"Could not find instance associated with whitelist container {ContainerName}, skipping restart");
+                            continue;
+                        }
 
-                RestartInstance(container.ID, instance);
-                break;
-            }
-            case "update":
-            {
-                if (_dockerClient == null) return;
-                await command.RespondAsync(
-                    $"Updating headless container image, please allow up to five minutes before yelling at your local server administrator." +
-                    $" All instances will continue running the old image until restarted.");
-                UpdateContainerImage();
+                        RestartInstance(container.ID, ContainerName);
+                        restartTasks.Add(ContainerName);
+                    }
+                    string instanceList = string.Join("\n", restartTasks);
+                    await command.RespondAsync(
+                        $"Restarting all {restartTasks.Count} instances:\n${instanceList}\n. Please allow up to five minutes before yelling at your local server administrator.");
+                }
+                else // Restart only the specified instances
+                {
+                    var container = instances.FirstOrDefault(cont => string.Join(", ", cont.Names).TrimStart('/') == instance);
+                    if (container == null)
+                    {
+                        await command.RespondAsync($"Instance '{instance}' does not exist.");
+                        return;
+                    }
+
+                    await command.RespondAsync(
+                        $"Instance '{instance}' restarting, please allow up to five minutes before yelling at your local server administrator.");
+
+                    RestartInstance(container.ID, instance);
+                }
+
                 break;
             }
             default:
@@ -190,107 +247,18 @@ internal class ResoHelperFp
     private async void RestartInstance(string containerId, string instanceName)
     {
         if (_dockerClient == null) return;
-        var containerInfo = await _dockerClient.Containers.InspectContainerAsync(containerId);
-        string workDir;
+
         try
         {
-            workDir = containerInfo.Config.Labels["com.docker.compose.project.working_dir"];
+            await _dockerClient.Containers.RestartContainerAsync(containerId, new ContainerRestartParameters());
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            Logger.Error($"Failed to get instance working directory, aborting update. Exception: {e}");
-            await _discordInterface!.SendMessage($"Container update failed: {e.Message}");
-            return;
-        }
-
-        var stdOutBuffer = new StringBuilder();
-        var stdErrBuffer = new StringBuilder();
-
-        var result = await Cli.Wrap("podman")
-            .WithArguments(["compose", "down"])
-            .WithWorkingDirectory(workDir)
-            .WithValidation(CommandResultValidation.None)
-            .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
-            .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
-            .ExecuteAsync();
-
-        if (result.ExitCode != 0)
-        {
-            await _discordInterface!.SendMessage($"Container '{instanceName}' failed to shut down cleanly. This may or may not be okay.");
-            Logger.Warning(stdOutBuffer + "\n" + stdErrBuffer);
-        }
-
-        stdOutBuffer.Clear();
-        stdErrBuffer.Clear();
-
-        result = await Cli.Wrap("podman")
-            .WithArguments(["compose", "up", "-d"])
-            .WithWorkingDirectory(workDir)
-            .WithValidation(CommandResultValidation.None)
-            .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
-            .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
-            .ExecuteAsync();
-
-        if (result.ExitCode != 0)
-        {
-            await _discordInterface!.SendMessage($"Container '{instanceName}' failed to start. Shits fucked.");
-            Logger.Error(stdOutBuffer + "\n" + stdErrBuffer);
+            Logger.Error($"Failed to restart container {instanceName}. Exception: {ex}");
+            await _discordInterface!.SendMessage($"Container restart failed: {ex.Message}");
         }
 
         await _discordInterface!.SendMessage($"Container '{instanceName}' restarted successfully.");
-    }
-
-    private async void UpdateContainerImage()
-    {
-        if (_dockerClient == null) return;
-        var containerInfos = new List<ContainerInspectResponse>();
-        var containers = await _dockerClient.Containers.ListContainersAsync(new ContainersListParameters());
-        foreach (var container in containers)
-        {
-            containerInfos.Add(await _dockerClient.Containers.InspectContainerAsync(container.ID));
-        }
-
-        var containerInfo = containerInfos.FirstOrDefault(container => container.Config.Labels["com.docker.compose.service"] == "resonite");
-        if (containerInfo == null)
-        {
-            await _discordInterface!.SendMessage("Failed to retrieve Resonite container, it's now time to yell at your local server administrator");
-            return;
-        }
-
-        string workDir;
-        try
-        {
-            workDir = containerInfo.Config.Labels["com.docker.compose.project.working_dir"];
-        }
-        catch (Exception e)
-        {
-            Logger.Error($"Failed to get instance working directory, aborting update. Exception: {e}");
-            await _discordInterface!.SendMessage($"Container update failed: {e.Message}");
-            return;
-        }
-
-        Logger.Log($"Building image in {workDir}...");
-
-        var stdOutBuffer = new StringBuilder();
-        var stdErrBuffer = new StringBuilder();
-
-        var result = await Cli.Wrap("podman")
-            .WithArguments(["compose", "build", "--no-cache"])
-            .WithWorkingDirectory(workDir)
-            .WithValidation(CommandResultValidation.None)
-            .WithStandardOutputPipe(PipeTarget.ToStringBuilder(stdOutBuffer))
-            .WithStandardErrorPipe(PipeTarget.ToStringBuilder(stdErrBuffer))
-            .ExecuteAsync();
-
-        Logger.Log($"Exited with code {result.ExitCode}, stdout was:\n{stdOutBuffer}\nstderr was:\n{stdErrBuffer}");
-
-        if (result.ExitCode != 0)
-        {
-            await _discordInterface!.SendMessage("Container failed to build, it's now time to yell at your local server administrator.");
-            return;
-        }
-
-        await _discordInterface!.SendMessage("Container update complete");
     }
 
     static DockerClient CreateDockerClient()
