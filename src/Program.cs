@@ -218,7 +218,7 @@ internal class ResoHelperFp
                     }
                     string instanceList = string.Join("\n", restartTasks);
                     await command.RespondAsync(
-                        $"Restarting all {restartTasks.Count} instances:\n${instanceList}\n. Please allow up to five minutes before yelling at your local server administrator.");
+                        $"Restarting all {restartTasks.Count} instances:\n{instanceList}\n\nPlease allow up to five minutes before yelling at your local server administrator.");
                 }
                 else // Restart only the specified instances
                 {
